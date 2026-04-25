@@ -98,7 +98,17 @@ class WardrobeVectorDB:
             with_vectors=False,
         )
 
-    def delete(self, point_id: str) -> bool:
+    def delete_by_image_path(self, img_path: str) -> bool:
+        """Delete a point by image path. Returns True on success."""
+        logger.warning(f"Deleting point with img_path '{img_path}'")
+        self.client.delete(
+            collection_name=self.collection,
+            points_selector={"filter": {"must": [{"key": "img_path", "match": {"value": img_path}}]}},
+        )
+        logger.info(f"Deleted point with img_path '{img_path}'")
+        return True
+
+    def delete_by_point(self, point_id: str) -> bool:
         """Delete a point by ID. Returns True on success."""
         logger.warning(f"Deleting point {point_id}")
         self.client.delete(
