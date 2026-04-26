@@ -1,0 +1,197 @@
+<div class="wardrobe-container">
+  <div class="header">
+    <div>
+      <h1 class="title">My Wardrobe</h1>
+      <p class="subtitle">{{filteredItems.length}} items {{ selectedCategory !== 'All' ? 'in ' + selectedCategory : 'in your collection' }}</p>
+    </div>
+  </div>
+
+  <!-- Category Filter -->
+  <div class="filter-container">
+    <button 
+      *ngFor="let category of categories"
+      class="filter-btn"
+      [class.active]="selectedCategory === category"
+      (click)="selectCategory(category)">
+      {{ category }}
+    </button>
+  </div>
+
+  <!-- Upload Floating Button -->
+  <button class="upload-fab" (click)="toggleUploadZone()" [class.active]="showUploadZone">
+    <span class="fab-icon">{{ showUploadZone ? '×' : '+' }}</span>
+  </button>
+
+  <!-- Upload Zone -->
+  <div class="upload-zone" *ngIf="showUploadZone" 
+       [class.drag-over]="dragOver"
+       (dragover)="onDragOver($event)"
+       (dragleave)="onDragLeave($event)"
+       (drop)="onDrop($event)">
+    <div class="upload-content">
+      <div *ngIf="!uploading" class="upload-prompt">
+        <div class="upload-icon">📸</div>
+        <h3>Add to Wardrobe</h3>
+        <p>Drag & drop your image here or click to browse</p>
+        <input type="file" 
+               #fileInput 
+               accept="image/*" 
+               (change)="onFileSelected($event)" 
+               style="display: none">
+        <button class="browse-btn" (click)="fileInput.click()">Browse Files</button>
+      </div>
+
+      <div *ngIf="uploading" class="upload-progress">
+        <div class="spinner"></div>
+        <p>Processing your image with AI...</p>
+      </div>
+
+      <div *ngIf="uploadError" class="upload-error">
+        <div class="error-icon">⚠️</div>
+        <p>{{uploadError}}</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  <div *ngIf="loading" class="loading-state">
+    <div class="spinner"></div>
+    <p>Loading your wardrobe...</p>
+  </div>
+
+  <!-- Error State -->
+  <div *ngIf="error && !loading" class="error-state">
+    <div class="error-icon">⚠️</div>
+    <p class="error-message">{{error}}</p>
+    <button (click)="loadItems()" class="retry-btn">Retry</button>
+  </div>
+
+  <!-- Items Grid -->
+  <div *ngIf="!loading && !error" class="items-grid">
+    <div *ngFor="let item of filteredItems" class="item-card" (click)="selectItem(item)">
+      <div class="item-image-wrapper">
+        <img [src]="item.image_url" [alt]="item.raw_caption" class="item-image" loading="lazy">
+        <div class="item-overlay">
+          <span class="view-details">View Details</span>
+        </div>
+      </div>
+      
+      <div class="item-info">
+        <div class="item-category">
+          <span class="category-badge">{{item.sub_category}}</span>
+        </div>
+        <p class="item-caption">{{item.raw_caption}}</p>
+        <div class="item-tags">
+          <span 
+            class="color-tag" 
+            [style.background-color]="getColorBadge(item.primary_color)"
+            [style.border]="item.primary_color === 'White' ? '1px solid #e5e7eb' : 'none'"
+            [title]="item.primary_color"
+          ></span>
+          <span *ngFor="let color of item.secondary_colors?.slice(0, 2)" 
+            class="color-tag small" 
+            [style.background-color]="getColorBadge(color)"
+            [style.border]="color === 'White' ? '1px solid #e5e7eb' : 'none'"
+            [title]="color"
+          ></span>
+          <span class="tag">{{item.pattern}}</span>
+          <span class="tag">{{item.material}}</span>
+          <span *ngIf="item.fit" class="tag">{{item.fit}}</span>
+          <span *ngFor="let season of item.season?.slice(0, 2)" class="tag season-tag">{{season}}</span>
+          <span *ngFor="let occasion of item.occasion?.slice(0, 1)" class="tag occasion-tag">{{occasion}}</span>
+          <span *ngFor="let vibe of item.style_vibe?.slice(0, 1)" class="tag vibe-tag">{{vibe}}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Empty State -->
+  <div *ngIf="!loading && !error && items.length === 0" class="empty-state">
+    <div class="empty-icon">📦</div>
+    <h2>No items yet</h2>
+    <p>Start adding clothes to your wardrobe to see them here.</p>
+  </div>
+</div>
+
+<!-- Item Detail Modal -->
+<div *ngIf="selectedItem" class="modal-overlay" (click)="closeModal()">
+  <div class="modal-content" (click)="$event.stopPropagation()">
+    <button class="modal-close" (click)="closeModal()">×</button>
+    
+    <div class="modal-grid">
+      <div class="modal-image-section">
+        <img [src]="selectedItem.image_url" [alt]="selectedItem.raw_caption" class="modal-image">
+      </div>
+      
+      <div class="modal-details">
+        <div class="detail-header">
+          <h2 class="detail-title">{{selectedItem.sub_category}}</h2>
+          <span class="category-badge-large">{{selectedItem.primary_category}}</span>
+        </div>
+        
+        <p class="detail-caption">{{selectedItem.raw_caption}}</p>
+        
+        <div class="detail-section">
+          <h3 class="section-title">Colors</h3>
+          <div class="color-palette">
+            <div class="color-item">
+              <span 
+                class="color-circle" 
+                [style.background-color]="getColorBadge(selectedItem.primary_color)"
+                [style.border]="selectedItem.primary_color === 'White' ? '1px solid #e5e7eb' : 'none'"
+              ></span>
+              <span class="color-name">{{selectedItem.primary_color}}</span>
+            </div>
+            <div *ngFor="let color of selectedItem.secondary_colors" class="color-item">
+              <span 
+                class="color-circle" 
+                [style.background-color]="getColorBadge(color)"
+                [style.border]="color === 'White' ? '1px solid #e5e7eb' : 'none'"
+              ></span>
+              <span class="color-name">{{color}}</span>
+            </div>
+          </div>
+        </div>
+        
+        <div class="detail-section">
+          <h3 class="section-title">Details</h3>
+          <div class="detail-grid">
+            <div class="detail-item">
+              <span class="detail-label">Pattern</span>
+              <span class="detail-value">{{selectedItem.pattern}}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Material</span>
+              <span class="detail-value">{{selectedItem.material}}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Fit</span>
+              <span class="detail-value">{{selectedItem.fit}}</span>
+            </div>
+          </div>
+        </div>
+        
+        <div class="detail-section" *ngIf="selectedItem.season && selectedItem.season.length > 0">
+          <h3 class="section-title">Season</h3>
+          <div class="tag-list">
+            <span *ngFor="let season of selectedItem.season" class="detail-tag">{{season}}</span>
+          </div>
+        </div>
+        
+        <div class="detail-section" *ngIf="selectedItem.occasion && selectedItem.occasion.length > 0">
+          <h3 class="section-title">Occasion</h3>
+          <div class="tag-list">
+            <span *ngFor="let occasion of selectedItem.occasion" class="detail-tag">{{occasion}}</span>
+          </div>
+        </div>
+        
+        <div class="detail-section" *ngIf="selectedItem.style_vibe && selectedItem.style_vibe.length > 0">
+          <h3 class="section-title">Style Vibe</h3>
+          <div class="tag-list">
+            <span *ngFor="let style of selectedItem.style_vibe" class="detail-tag">{{style}}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
