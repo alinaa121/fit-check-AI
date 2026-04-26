@@ -36,28 +36,55 @@ class WardrobeVectorDB:
     def embed(self, texts: list[str]) -> list[list[float]]:
         return [v.tolist() for v in self.model.encode(texts, show_progress_bar=False)]
 
-    def add(self, img_path: str, clothing_type: str, text: str) -> str:
-        """Add a clothing item to the collection. Returns the point ID."""
-        vec = self.embed([text])[0]
+    def add(self, img_path: str, metadata: dict) -> str:
+        """Add a clothing item to the collection with comprehensive metadata. Returns the point ID."""
+        # Use raw_caption for embedding as it's the most descriptive
+        text_for_embedding = metadata.get('raw_caption', '')
+        
+        # Fallback: if no raw_caption, create text from other fields
+        if not text_for_embedding:
+            parts = [
+                metadata.get('sub_category', ''),
+                metadata.get('primary_color', ''),
+                metadata.get('pattern', ''),
+                metadata.get('material', '')
+            ]
+            text_for_embedding = ' '.join([p for p in parts if p])
+        
+        vec = self.embed([text_for_embedding])[0]
         now_iso = datetime.utcnow().isoformat() + "Z"
         point_id = str(uuid.uuid4())
+        
+        # Store all metadata in payload
+        payload = {
+            "created_at": now_iso,
+            "modified_at": now_iso,
+            "img_path": img_path,
+            "raw_caption": metadata.get('raw_caption', ''),
+            "primary_category": metadata.get('primary_category', ''),
+            "sub_category": metadata.get('sub_category', ''),
+            "primary_color": metadata.get('primary_color', ''),
+            "secondary_colors": metadata.get('secondary_colors', []),
+            "pattern": metadata.get('pattern', ''),
+            "material": metadata.get('material', ''),
+            "season": metadata.get('season', []),
+            "weather": metadata.get('weather', []),
+            "occasion": metadata.get('occasion', []),
+            "fit": metadata.get('fit', ''),
+            "style_vibe": metadata.get('style_vibe', []),
+        }
+        
         point = PointStruct(
             id=point_id,
             vector=vec,
-            payload={
-                "created_at": now_iso,
-                "modified_at": now_iso,
-                "type": clothing_type,
-                "img_path": img_path,
-                "text": text,
-            },
+            payload=payload,
         )
         self.client.upsert(collection_name=self.collection, points=[point])
-        logger.info(f"Added point {point_id} with type '{clothing_type}' and img_path '{img_path}'")
+        logger.info(f"Added point {point_id} with category '{metadata.get('primary_category')}' sub '{metadata.get('sub_category')}' and img_path '{img_path}'")
         return point_id
 
     def search(self, query: str, limit: int = 5):
-        """Search for similar items. Returns list of dicts with text, img_path, type, and score."""
+        """Search for similar items. Returns list of dicts with all metadata and score."""
         qvec = self.embed([query])[0]
         logger.info(f"Searching for: '{query}' with limit={limit}")
         # qdrant-client >= 1.7 uses query_points; fallback to search for older versions
@@ -71,16 +98,26 @@ class WardrobeVectorDB:
             # query_points returns a QueryResponse; extract .points
             points = results.points if hasattr(results, "points") else results
 
-            # Extract text and img_path from each result
+            # Extract all metadata from each result
             output = []
             for p in points:
                 payload = p.payload if hasattr(p, "payload") else {}
                 output.append({
                     "id": p.id if hasattr(p, "id") else None,
                     "score": p.score if hasattr(p, "score") else None,
-                    "text": payload.get("text"),
                     "img_path": payload.get("img_path"),
-                    "type": payload.get("type"),
+                    "raw_caption": payload.get("raw_caption"),
+                    "primary_category": payload.get("primary_category"),
+                    "sub_category": payload.get("sub_category"),
+                    "primary_color": payload.get("primary_color"),
+                    "secondary_colors": payload.get("secondary_colors", []),
+                    "pattern": payload.get("pattern"),
+                    "material": payload.get("material"),
+                    "season": payload.get("season", []),
+                    "weather": payload.get("weather", []),
+                    "occasion": payload.get("occasion", []),
+                    "fit": payload.get("fit"),
+                    "style_vibe": payload.get("style_vibe", []),
                 })
             logger.info(f"Search returned {len(output)} results")
             return output

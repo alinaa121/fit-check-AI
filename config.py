@@ -17,18 +17,6 @@ identify_clothing_function = {
                 "enum": ["Top", "Bottom", "Outerwear", "Footwear", "Accessory", "Full-body", "Not-Clothing"],
                 "description": "Main category of the clothing item."
             },
-            "sub_category": {
-                "type": "string",
-                "enum": [
-                    "T-Shirt", "Blouse", "Shirt", "Tank Top", "Sweater", "Cardigan", "Hoodie", "Polo", "Crop Top", "Turtleneck", "Camisole",
-                    "Jeans", "Trousers", "Shorts", "Skirt", "Leggings", "Joggers", "Chinos", "Cargo Pants", "Sweatpants",
-                    "Jacket", "Coat", "Blazer", "Bomber", "Parka", "Trench Coat", "Denim Jacket", "Leather Jacket", "Puffer Jacket", "Windbreaker", "Vest",
-                    "Sneakers", "Boots", "Sandals", "Heels", "Flats", "Loafers", "Slippers", "Athletic Shoes",
-                    "Hat", "Scarf", "Belt", "Bag", "Sunglasses", "Watch", "Jewelry", "Tie", "Gloves", "Socks",
-                    "Dress", "Jumpsuit", "Romper", "Overalls", "Suit", "Gown"
-                ],
-                "description": "Specific subcategory. Choose the most accurate match from the enum list."
-            },
             "primary_color": {
                 "type": "string",
                 "enum": ["Black", "White", "Grey", "Navy", "Blue", "Red", "Green", "Yellow", "Orange", "Purple", "Pink", "Brown", "Beige", "Gold", "Silver", "Multicolor"],
@@ -60,14 +48,6 @@ identify_clothing_function = {
                 },
                 "description": "Up to 3 seasons suitable for wearing this item."
             },
-            "weather": {
-                "type": "array",
-                "items": {
-                    "type": "string",
-                    "enum": ["Hot", "Mild", "Cold", "Rainy", "Snowy", "All-Weather"]
-                },
-                "description": "Up to 3 weather conditions this item is suitable for."
-            },
             "occasion": {
                 "type": "array",
                 "items": {
@@ -90,7 +70,7 @@ identify_clothing_function = {
                 "description": "Up to 3 style vibes or aesthetics."
             }
         },
-        "required": ["raw_caption", "primary_category", "sub_category", "primary_color", "pattern", "material", "fit", "occasion", "style_vibe"]
+        "required": ["raw_caption", "primary_category", "primary_color", "pattern", "material", "fit", "occasion", "style_vibe"]
     }
 }
 
@@ -104,15 +84,14 @@ You must return a single JSON object strictly adhering to the schema and Enums d
 
 2. For all other fields, you MUST choose the most accurate value from the provided ENUM lists defined in the function schema.
 
-3. For array fields (secondary_colors, season, weather, occasion, style_vibe), provide up to 3 most relevant values from their respective ENUMs.
+3. For array fields (secondary_colors, season, occasion, style_vibe), provide up to 3 most relevant values from their respective ENUMs.
 
 4. Be precise with your selections:
    - primary_category: Choose from [Top, Bottom, Outerwear, Footwear, Accessory, Full-body, Not-Clothing]
-   - sub_category: Be specific but concise (e.g., T-shirt, Jeans, Sneakers, Blazer, Maxi Dress)
    - primary_color and secondary_colors: Use exact color ENUMs
    - pattern: Select the most accurate pattern type
    - material: Identify the primary fabric
-   - season/weather: Consider the garment's weight and coverage
+   - season: Consider the garment's weight and coverage
    - occasion: Think about where this would typically be worn
    - fit: Assess the silhouette and cut
    - style_vibe: Capture the aesthetic essence
