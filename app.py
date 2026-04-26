@@ -1,11 +1,12 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 import logging
 import uuid
 
 from vectordb import WardrobeVectorDB
-from s3_utils import generate_presigned_url
+from s3_utils import *
 from clothing_pipeline import ClothingPipeline
 
 # Configure logging
@@ -209,6 +210,150 @@ async def upload_item(
     except Exception as e:
         logger.error(f"Unexpected error during upload: {e}")
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+
+
+@app.delete("/wardrobe/item/{item_id}", response_model=Dict[str, Any])
+async def delete_item(item_id: str):
+    """
+    Delete a wardrobe item by its point ID.
+    
+    This will:
+    1. Retrieve the item from VectorDB to get the S3 image path
+    2. Delete the image from S3
+    3. Delete the point from VectorDB
+    
+    Args:
+        item_id: The point ID (UUID) of the item to delete
+        
+    Returns:
+        Dict with deletion status and details
+    """
+    try:
+        logger.info(f"Deleting item with ID: {item_id}")
+        
+        # Step 1: Get the item from VectorDB to retrieve img_path
+        item = vdb.get_by_id(item_id)
+        
+        if item is None:
+            logger.warning(f"Item {item_id} not found in database")
+            raise HTTPException(
+                status_code=404,
+                detail=f"Item with ID '{item_id}' not found"
+            )
+        
+        img_path = item.get("payload", {}).get("img_path")
+        
+        if not img_path:
+            logger.warning(f"Item {item_id} has no img_path in payload")
+            # Still proceed with deletion from VectorDB
+        
+        # Step 2: Delete from S3 if img_path exists
+        s3_deleted = False
+        if img_path:
+            try:
+                delete_object(bucket=None, key=img_path)
+                logger.info(f"Deleted S3 object: {img_path}")
+                s3_deleted = True
+            except Exception as e:
+                logger.error(f"Failed to delete S3 object {img_path}: {e}")
+                # Continue with VectorDB deletion even if S3 fails
+        
+        # Step 3: Delete from VectorDB
+        try:
+            vdb.delete_by_point(item_id)
+            logger.info(f"Deleted point {item_id} from VectorDB")
+        except Exception as e:
+            logger.error(f"Failed to delete point {item_id} from VectorDB: {e}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to delete item from database: {str(e)}"
+            )
+        
+        return {
+            "status": "success",
+            "message": f"Item '{item_id}' deleted successfully",
+            "id": item_id,
+            "img_path": img_path,
+            "s3_deleted": s3_deleted,
+            "vectordb_deleted": True
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error during deletion: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Delete operation failed: {str(e)}"
+        )
+
+
+class UpdateItemRequest(BaseModel):
+    field_name: str
+    new_value: Any
+
+
+@app.patch("/wardrobe/item/{item_id}", response_model=Dict[str, Any])
+async def update_item(item_id: str, request: UpdateItemRequest):
+    """
+    Update a specific field of a wardrobe item.
+    
+    If updating 'raw_caption', the item will be re-embedded for better search results.
+    For other fields, only the metadata is updated.
+    
+    Args:
+        item_id: The point ID (UUID) of the item to update
+        request: UpdateItemRequest with field_name and new_value
+        
+    Returns:
+        Dict with update status and updated item details
+    """
+    try:
+        logger.info(f"Updating item {item_id}: {request.field_name} = {request.new_value}")
+        
+        # Validate field name
+        valid_fields = [
+            "raw_caption", "primary_category", "sub_category", "primary_color",
+            "secondary_colors", "pattern", "material", "season", "weather",
+            "occasion", "fit", "style_vibe"
+        ]
+        
+        if request.field_name not in valid_fields:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid field name. Valid fields: {', '.join(valid_fields)}"
+            )
+        
+        # Perform the update
+        success = vdb.update_by_point(item_id, request.field_name, request.new_value)
+        
+        if not success:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Item with ID '{item_id}' not found"
+            )
+        
+        # Retrieve updated item
+        updated_item = vdb.get_by_id(item_id)
+        
+        return {
+            "status": "success",
+            "message": f"Field '{request.field_name}' updated successfully",
+            "id": item_id,
+            "field_updated": request.field_name,
+            "new_value": request.new_value,
+            "re_embedded": request.field_name == "raw_caption",
+            "updated_payload": updated_item.get("payload", {}) if updated_item else {}
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error during update: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Update operation failed: {str(e)}"
+        )
 
 
 if __name__ == "__main__":

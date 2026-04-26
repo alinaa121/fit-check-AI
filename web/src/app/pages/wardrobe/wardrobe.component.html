@@ -117,6 +117,12 @@
 <div *ngIf="selectedItem" class="modal-overlay" (click)="closeModal()">
   <div class="modal-content" (click)="$event.stopPropagation()">
     <button class="modal-close" (click)="closeModal()">×</button>
+    <button class="modal-edit" (click)="toggleEditMode()" [class.active]="editMode" title="Edit item">
+      {{ editMode ? '✓' : '✏️' }}
+    </button>
+    <button class="modal-delete" (click)="deleteItem(selectedItem)" [disabled]="deleting" title="Delete item">
+      {{ deleting ? '...' : '🗑️' }}
+    </button>
     
     <div class="modal-grid">
       <div class="modal-image-section">
@@ -124,31 +130,108 @@
       </div>
       
       <div class="modal-details">
-        <div class="detail-header">
-          <h2 class="detail-title">{{selectedItem.sub_category}}</h2>
-          <span class="category-badge-large">{{selectedItem.primary_category}}</span>
+        <div class="detail-section">
+          <div class="detail-header">
+            <!-- Sub Category (display only) -->
+            <div class="editable-wrapper">
+              <h2 class="detail-title">{{selectedItem.sub_category}}</h2>
+            </div>
+            <span class="category-badge-large">{{selectedItem.primary_category}}</span>
+          </div>
         </div>
         
-        <p class="detail-caption">{{selectedItem.raw_caption}}</p>
+        <!-- Raw Caption (editable) -->
+        <div class="detail-section">
+          <p class="detail-caption" *ngIf="!editMode || editingField !== 'raw_caption'">
+            {{selectedItem.raw_caption}}
+          </p>
+          <div class="edit-caption-group" *ngIf="editMode && editingField !== 'raw_caption'">
+            <p class="detail-caption editable" (click)="startEditing('raw_caption', selectedItem.raw_caption)">
+              {{selectedItem.raw_caption}} ✏️
+            </p>
+          </div>
+          <div class="edit-input-group" *ngIf="editingField === 'raw_caption'">
+            <textarea [(ngModel)]="editValue" class="edit-textarea" rows="3" [disabled]="saving"></textarea>
+            <button class="save-btn" (click)="saveField()" [disabled]="saving">{{ saving ? '...' : '✓' }}</button>
+            <button class="cancel-btn" (click)="cancelEditing()" [disabled]="saving">✕</button>
+          </div>
+        </div>
         
         <div class="detail-section">
           <h3 class="section-title">Colors</h3>
-          <div class="color-palette">
-            <div class="color-item">
-              <span 
-                class="color-circle" 
-                [style.background-color]="getColorBadge(selectedItem.primary_color)"
-                [style.border]="selectedItem.primary_color === 'White' ? '1px solid #e5e7eb' : 'none'"
-              ></span>
-              <span class="color-name">{{selectedItem.primary_color}}</span>
+          
+          <!-- Primary Color -->
+          <div class="color-edit-group">
+            <span class="detail-label">Primary</span>
+            <div *ngIf="!editMode || editingField !== 'primary_color'" class="color-palette">
+              <div class="color-item">
+                <span 
+                  class="color-circle" 
+                  [style.background-color]="getColorBadge(selectedItem.primary_color)"
+                  [style.border]="selectedItem.primary_color === 'White' ? '1px solid #e5e7eb' : 'none'"
+                ></span>
+                <span class="color-name">{{selectedItem.primary_color}}</span>
+              </div>
             </div>
-            <div *ngFor="let color of selectedItem.secondary_colors" class="color-item">
-              <span 
-                class="color-circle" 
-                [style.background-color]="getColorBadge(color)"
-                [style.border]="color === 'White' ? '1px solid #e5e7eb' : 'none'"
-              ></span>
-              <span class="color-name">{{color}}</span>
+            <div *ngIf="editMode && editingField !== 'primary_color'" class="color-palette">
+              <div class="color-item editable" (click)="startEditing('primary_color', selectedItem.primary_color)">
+                <span 
+                  class="color-circle" 
+                  [style.background-color]="getColorBadge(selectedItem.primary_color)"
+                  [style.border]="selectedItem.primary_color === 'White' ? '1px solid #e5e7eb' : 'none'"
+                ></span>
+                <span class="color-name">{{selectedItem.primary_color}} ✏️</span>
+              </div>
+            </div>
+            <div class="array-edit" *ngIf="editingField === 'primary_color'">
+              <select [(ngModel)]="editValue" class="edit-select-small" [disabled]="saving">
+                <option *ngFor="let option of colorOptions" [value]="option">{{option}}</option>
+              </select>
+              <button class="save-btn-small" (click)="saveField()" [disabled]="saving">{{ saving ? '...' : '✓' }}</button>
+              <button class="cancel-btn-small" (click)="cancelEditing()" [disabled]="saving">✕</button>
+            </div>
+          </div>
+          
+          <!-- Secondary Colors -->
+          <div class="color-edit-group">
+            <span class="detail-label">Secondary (max 3)</span>
+            <div *ngIf="!editMode || editingField !== 'secondary_colors'" class="color-palette">
+              <div *ngFor="let color of selectedItem.secondary_colors" class="color-item">
+                <span 
+                  class="color-circle" 
+                  [style.background-color]="getColorBadge(color)"
+                  [style.border]="color === 'White' ? '1px solid #e5e7eb' : 'none'"
+                ></span>
+                <span class="color-name">{{color}}</span>
+              </div>
+            </div>
+            <div *ngIf="editMode && editingField !== 'secondary_colors'" class="color-palette editable" (click)="startEditing('secondary_colors', selectedItem.secondary_colors)">
+              <div *ngFor="let color of selectedItem.secondary_colors" class="color-item">
+                <span 
+                  class="color-circle" 
+                  [style.background-color]="getColorBadge(color)"
+                  [style.border]="color === 'White' ? '1px solid #e5e7eb' : 'none'"
+                ></span>
+                <span class="color-name">{{color}}</span>
+              </div>
+              <span class="edit-icon">✏️</span>
+            </div>
+            <div class="array-edit" *ngIf="editingField === 'secondary_colors'">
+              <div class="array-edit-tags">
+                <span *ngFor="let color of editValue" class="edit-tag" (click)="removeFromArray(color)">
+                  {{color}} ✕
+                </span>
+              </div>
+              <div class="array-edit-controls" *ngIf="canAddToArray()">
+                <select class="edit-select-small" (change)="addToArray($any($event.target).value); $any($event.target).value=''" [disabled]="saving">
+                  <option value="">+ Add color</option>
+                  <option *ngFor="let option of getAvailableOptions('secondary_colors')" [value]="option">{{option}}</option>
+                </select>
+              </div>
+              <div class="array-edit-actions">
+                <button class="save-btn-small" (click)="saveField()" [disabled]="saving">{{ saving ? '...' : '✓' }}</button>
+                <button class="cancel-btn-small" (click)="cancelEditing()" [disabled]="saving">✕</button>
+              </div>
             </div>
           </div>
         </div>
@@ -156,39 +239,137 @@
         <div class="detail-section">
           <h3 class="section-title">Details</h3>
           <div class="detail-grid">
+            <!-- Pattern (editable) -->
             <div class="detail-item">
               <span class="detail-label">Pattern</span>
-              <span class="detail-value">{{selectedItem.pattern}}</span>
+              <span class="detail-value" *ngIf="!editMode || editingField !== 'pattern'">{{selectedItem.pattern}}</span>
+              <span class="detail-value editable" *ngIf="editMode && editingField !== 'pattern'" (click)="startEditing('pattern', selectedItem.pattern)">
+                {{selectedItem.pattern}} ✏️
+              </span>
+              <div class="inline-edit" *ngIf="editingField === 'pattern'">
+                <select [(ngModel)]="editValue" class="edit-select-small" [disabled]="saving">
+                  <option *ngFor="let option of patternOptions" [value]="option">{{option}}</option>
+                </select>
+                <button class="save-btn-small" (click)="saveField()" [disabled]="saving">{{ saving ? '...' : '✓' }}</button>
+                <button class="cancel-btn-small" (click)="cancelEditing()" [disabled]="saving">✕</button>
+              </div>
             </div>
+            
+            <!-- Material (editable) -->
             <div class="detail-item">
               <span class="detail-label">Material</span>
-              <span class="detail-value">{{selectedItem.material}}</span>
+              <span class="detail-value" *ngIf="!editMode || editingField !== 'material'">{{selectedItem.material}}</span>
+              <span class="detail-value editable" *ngIf="editMode && editingField !== 'material'" (click)="startEditing('material', selectedItem.material)">
+                {{selectedItem.material}} ✏️
+              </span>
+              <div class="inline-edit" *ngIf="editingField === 'material'">
+                <select [(ngModel)]="editValue" class="edit-select-small" [disabled]="saving">
+                  <option *ngFor="let option of materialOptions" [value]="option">{{option}}</option>
+                </select>
+                <button class="save-btn-small" (click)="saveField()" [disabled]="saving">{{ saving ? '...' : '✓' }}</button>
+                <button class="cancel-btn-small" (click)="cancelEditing()" [disabled]="saving">✕</button>
+              </div>
             </div>
+            
+            <!-- Fit (editable) -->
             <div class="detail-item">
               <span class="detail-label">Fit</span>
-              <span class="detail-value">{{selectedItem.fit}}</span>
+              <span class="detail-value" *ngIf="!editMode || editingField !== 'fit'">{{selectedItem.fit}}</span>
+              <span class="detail-value editable" *ngIf="editMode && editingField !== 'fit'" (click)="startEditing('fit', selectedItem.fit)">
+                {{selectedItem.fit}} ✏️
+              </span>
+              <div class="inline-edit" *ngIf="editingField === 'fit'">
+                <select [(ngModel)]="editValue" class="edit-select-small" [disabled]="saving">
+                  <option *ngFor="let option of fitOptions" [value]="option">{{option}}</option>
+                </select>
+                <button class="save-btn-small" (click)="saveField()" [disabled]="saving">{{ saving ? '...' : '✓' }}</button>
+                <button class="cancel-btn-small" (click)="cancelEditing()" [disabled]="saving">✕</button>
+              </div>
             </div>
           </div>
         </div>
         
-        <div class="detail-section" *ngIf="selectedItem.season && selectedItem.season.length > 0">
-          <h3 class="section-title">Season</h3>
-          <div class="tag-list">
+        <div class="detail-section" *ngIf="selectedItem.season && selectedItem.season.length > 0 || editingField === 'season'">
+          <h3 class="section-title">Season (max 3)</h3>
+          <div *ngIf="!editMode || editingField !== 'season'" class="tag-list">
             <span *ngFor="let season of selectedItem.season" class="detail-tag">{{season}}</span>
           </div>
-        </div>
-        
-        <div class="detail-section" *ngIf="selectedItem.occasion && selectedItem.occasion.length > 0">
-          <h3 class="section-title">Occasion</h3>
-          <div class="tag-list">
-            <span *ngFor="let occasion of selectedItem.occasion" class="detail-tag">{{occasion}}</span>
+          <div *ngIf="editMode && editingField !== 'season'" class="tag-list editable" (click)="startEditing('season', selectedItem.season)">
+            <span *ngFor="let season of selectedItem.season" class="detail-tag">{{season}}</span>
+            <span class="edit-icon">✏️</span>
+          </div>
+          <div class="array-edit" *ngIf="editingField === 'season'">
+            <div class="array-edit-tags">
+              <span *ngFor="let season of editValue" class="edit-tag" (click)="removeFromArray(season)">
+                {{season}} ✕
+              </span>
+            </div>
+            <div class="array-edit-controls" *ngIf="canAddToArray()">
+              <select class="edit-select-small" (change)="addToArray($any($event.target).value); $any($event.target).value=''" [disabled]="saving">
+                <option value="">+ Add season</option>
+                <option *ngFor="let option of getAvailableOptions('season')" [value]="option">{{option}}</option>
+              </select>
+            </div>
+            <div class="array-edit-actions">
+              <button class="save-btn-small" (click)="saveField()" [disabled]="saving">{{ saving ? '...' : '✓' }}</button>
+              <button class="cancel-btn-small" (click)="cancelEditing()" [disabled]="saving">✕</button>
+            </div>
           </div>
         </div>
         
-        <div class="detail-section" *ngIf="selectedItem.style_vibe && selectedItem.style_vibe.length > 0">
-          <h3 class="section-title">Style Vibe</h3>
-          <div class="tag-list">
+        <div class="detail-section" *ngIf="selectedItem.occasion && selectedItem.occasion.length > 0 || editingField === 'occasion'">
+          <h3 class="section-title">Occasion (max 3)</h3>
+          <div *ngIf="!editMode || editingField !== 'occasion'" class="tag-list">
+            <span *ngFor="let occasion of selectedItem.occasion" class="detail-tag">{{occasion}}</span>
+          </div>
+          <div *ngIf="editMode && editingField !== 'occasion'" class="tag-list editable" (click)="startEditing('occasion', selectedItem.occasion)">
+            <span *ngFor="let occasion of selectedItem.occasion" class="detail-tag">{{occasion}}</span>
+            <span class="edit-icon">✏️</span>
+          </div>
+          <div class="array-edit" *ngIf="editingField === 'occasion'">
+            <div class="array-edit-tags">
+              <span *ngFor="let occasion of editValue" class="edit-tag" (click)="removeFromArray(occasion)">
+                {{occasion}} ✕
+              </span>
+            </div>
+            <div class="array-edit-controls" *ngIf="canAddToArray()">
+              <select class="edit-select-small" (change)="addToArray($any($event.target).value); $any($event.target).value=''" [disabled]="saving">
+                <option value="">+ Add occasion</option>
+                <option *ngFor="let option of getAvailableOptions('occasion')" [value]="option">{{option}}</option>
+              </select>
+            </div>
+            <div class="array-edit-actions">
+              <button class="save-btn-small" (click)="saveField()" [disabled]="saving">{{ saving ? '...' : '✓' }}</button>
+              <button class="cancel-btn-small" (click)="cancelEditing()" [disabled]="saving">✕</button>
+            </div>
+          </div>
+        </div>
+        
+        <div class="detail-section" *ngIf="selectedItem.style_vibe && selectedItem.style_vibe.length > 0 || editingField === 'style_vibe'">
+          <h3 class="section-title">Style Vibe (max 3)</h3>
+          <div *ngIf="!editMode || editingField !== 'style_vibe'" class="tag-list">
             <span *ngFor="let style of selectedItem.style_vibe" class="detail-tag">{{style}}</span>
+          </div>
+          <div *ngIf="editMode && editingField !== 'style_vibe'" class="tag-list editable" (click)="startEditing('style_vibe', selectedItem.style_vibe)">
+            <span *ngFor="let style of selectedItem.style_vibe" class="detail-tag">{{style}}</span>
+            <span class="edit-icon">✏️</span>
+          </div>
+          <div class="array-edit" *ngIf="editingField === 'style_vibe'">
+            <div class="array-edit-tags">
+              <span *ngFor="let style of editValue" class="edit-tag" (click)="removeFromArray(style)">
+                {{style}} ✕
+              </span>
+            </div>
+            <div class="array-edit-controls" *ngIf="canAddToArray()">
+              <select class="edit-select-small" (change)="addToArray($any($event.target).value); $any($event.target).value=''" [disabled]="saving">
+                <option value="">+ Add style</option>
+                <option *ngFor="let option of getAvailableOptions('style_vibe')" [value]="option">{{option}}</option>
+              </select>
+            </div>
+            <div class="array-edit-actions">
+              <button class="save-btn-small" (click)="saveField()" [disabled]="saving">{{ saving ? '...' : '✓' }}</button>
+              <button class="cancel-btn-small" (click)="cancelEditing()" [disabled]="saving">✕</button>
+            </div>
           </div>
         </div>
       </div>

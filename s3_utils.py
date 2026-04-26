@@ -137,6 +137,29 @@ def upload_image_from_bytes(
     upload_fileobj(buf, bucket, key, content_type=content_type, client=client, **client_kwargs)
 
 
+def delete_object(
+    bucket: Optional[str],
+    key: str,
+    client: Optional[Any] = None,
+    **client_kwargs,
+) -> None:
+    """Delete an object from S3.
+    
+    Args:
+        bucket: S3 bucket name (optional, reads from BUCKET_NAME env var)
+        key: S3 object key to delete
+        client: Optional S3 client
+    """
+    client = client or get_s3_client(**client_kwargs)
+    bucket = bucket or os.getenv("BUCKET_NAME")
+    if not bucket:
+        raise ValueError("Bucket name not specified and BUCKET_NAME env var is not set")
+    try:
+        client.delete_object(Bucket=bucket, Key=key)
+    except ClientError:
+        raise
+
+
 def generate_presigned_url(
     bucket: Optional[str],
     key: str,

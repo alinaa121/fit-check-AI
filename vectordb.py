@@ -4,6 +4,7 @@ import json
 import logging
 import requests
 from datetime import datetime
+from typing import Optional, Dict, Any
 from dotenv import load_dotenv
 from qdrant_client import QdrantClient
 from qdrant_client.models import PointStruct
@@ -135,6 +136,29 @@ class WardrobeVectorDB:
             with_vectors=False,
         )
 
+    def get_by_id(self, point_id: str) -> Optional[Dict[str, Any]]:
+        """Get a single point by ID. Returns dict with id, payload, or None if not found."""
+        logger.info(f"Fetching point {point_id}")
+        try:
+            points = self.client.retrieve(
+                collection_name=self.collection,
+                ids=[point_id],
+                with_payload=True,
+                with_vectors=False,
+            )
+            if not points:
+                logger.warning(f"Point {point_id} not found")
+                return None
+            
+            point = points[0]
+            return {
+                "id": point.id,
+                "payload": point.payload if hasattr(point, "payload") else {},
+            }
+        except Exception as e:
+            logger.error(f"Error fetching point {point_id}: {e}")
+            return None
+
     def delete_by_image_path(self, img_path: str) -> bool:
         """Delete a point by image path. Returns True on success."""
         logger.warning(f"Deleting point with img_path '{img_path}'")
@@ -153,4 +177,70 @@ class WardrobeVectorDB:
             points_selector=[point_id],
         )
         logger.info(f"Deleted point {point_id}")
+        return True
+
+    def update_by_point(self, point_id: str, field_name: str, new_value: Any) -> bool:
+        """Update a field for a specific point. 
+        
+        If field is 'raw_caption', the vector will be re-embedded.
+        Otherwise, only the metadata is updated.
+        
+        Args:
+            point_id: The ID of the point to update
+            field_name: The field to update (e.g., 'raw_caption', 'primary_color', etc.)
+            new_value: The new value for the field
+            
+        Returns:
+            True on success, False if point not found
+        """
+        logger.info(f"Updating point {point_id}: {field_name} = {new_value}")
+        
+        # Get existing point
+        existing = self.get_by_id(point_id)
+        if not existing:
+            logger.error(f"Point {point_id} not found, cannot update")
+            return False
+        
+        payload = existing["payload"]
+        
+        # Update the field in payload
+        payload[field_name] = new_value
+        
+        # Update modified timestamp
+        payload["modified_at"] = datetime.utcnow().isoformat() + "Z"
+        
+        # Check if we need to re-embed
+        if field_name == "raw_caption":
+            # Re-embed using the new caption
+            text_for_embedding = new_value if new_value else ''
+            
+            # Fallback if caption is empty
+            if not text_for_embedding:
+                parts = [
+                    payload.get('sub_category', ''),
+                    payload.get('primary_color', ''),
+                    payload.get('pattern', ''),
+                    payload.get('material', '')
+                ]
+                text_for_embedding = ' '.join([p for p in parts if p])
+            
+            vec = self.embed([text_for_embedding])[0]
+            
+            # Update point with new vector and payload
+            point = PointStruct(
+                id=point_id,
+                vector=vec,
+                payload=payload,
+            )
+            self.client.upsert(collection_name=self.collection, points=[point])
+            logger.info(f"Updated point {point_id} with new embedding for raw_caption")
+        else:
+            # Just update the payload, no need to re-embed
+            self.client.set_payload(
+                collection_name=self.collection,
+                payload=payload,
+                points=[point_id],
+            )
+            logger.info(f"Updated point {point_id} metadata: {field_name}")
+        
         return True

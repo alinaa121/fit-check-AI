@@ -47,4 +47,15 @@ export class WardrobeService {
     formData.append('file', file);
     return this.http.post<any>(`${this.apiUrl}/wardrobe/upload`, formData);
   }
+
+  deleteItem(itemId: string): Observable<any> {
+    return this.http.delete<any>(`${this.apiUrl}/wardrobe/item/${itemId}`);
+  }
+
+  updateItem(itemId: string, fieldName: string, newValue: any): Observable<any> {
+    return this.http.patch<any>(`${this.apiUrl}/wardrobe/item/${itemId}`, {
+      field_name: fieldName,
+      new_value: newValue
+    });
+  }
 }
