@@ -136,3 +136,42 @@ def upload_image_from_bytes(
     buf.seek(0)
     upload_fileobj(buf, bucket, key, content_type=content_type, client=client, **client_kwargs)
 
+
+def generate_presigned_url(
+    bucket: Optional[str],
+    key: str,
+    expiration: int = 3600,
+    client: Optional[Any] = None,
+    region_name: Optional[str] = None,
+    **client_kwargs,
+) -> str:
+    """Generate a presigned URL for an S3 object.
+    
+    Args:
+        bucket: S3 bucket name (optional, reads from BUCKET_NAME env var)
+        key: S3 object key
+        expiration: URL expiration time in seconds (default: 3600 = 1 hour)
+        client: Optional S3 client
+        region_name: AWS region (optional, reads from AWS_REGION env var)
+        
+    Returns:
+        str: Presigned URL that allows temporary access to the object
+    """
+    # Ensure we use the correct region
+    if not region_name:
+        region_name = client_kwargs.get('region_name') or os.getenv("AWS_REGION")
+    
+    client = client or get_s3_client(region_name=region_name, **client_kwargs)
+    bucket = bucket or os.getenv("BUCKET_NAME")
+    if not bucket:
+        raise ValueError("Bucket name not specified and BUCKET_NAME env var is not set")
+    try:
+        url = client.generate_presigned_url(
+            'get_object',
+            Params={'Bucket': bucket, 'Key': key},
+            ExpiresIn=expiration
+        )
+        return url
+    except ClientError as e:
+        raise
+
