@@ -82,6 +82,33 @@ def download_file(
         raise
 
 
+def download_file_to_memory(
+    bucket: Optional[str],
+    key: str,
+    client: Optional[Any] = None,
+    **client_kwargs,
+) -> bytes:
+    """Download a file from S3 into memory and return as bytes.
+    
+    Args:
+        bucket: S3 bucket name (optional, reads from BUCKET_NAME env var)
+        key: S3 object key
+        client: Optional S3 client
+        
+    Returns:
+        bytes: The file content as bytes
+    """
+    client = client or get_s3_client(**client_kwargs)
+    bucket = bucket or os.getenv("BUCKET_NAME")
+    if not bucket:
+        raise ValueError("Bucket name not specified and BUCKET_NAME env var is not set")
+    try:
+        response = client.get_object(Bucket=bucket, Key=key)
+        return response['Body'].read()
+    except ClientError:
+        raise
+
+
 def list_objects(bucket: Optional[str], prefix: str = "", client: Optional[Any] = None, **client_kwargs) -> List[str]:
     client = client or get_s3_client(**client_kwargs)
     bucket = bucket or os.getenv("BUCKET_NAME")

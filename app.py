@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 import logging
@@ -44,6 +45,52 @@ async def root():
     return {"status": "ok", "message": "Wardrobe AI API is running"}
 
 
+@app.get("/wardrobe/image/{image_key:path}")
+async def get_image(image_key: str):
+    """
+    Proxy endpoint to serve images from S3.
+    This bypasses Block Public Access restrictions by fetching images server-side.
+    
+    Args:
+        image_key: The S3 key path (e.g., 'images/abc-123.jpg')
+        
+    Returns:
+        StreamingResponse with the image content
+    """
+    try:
+        import io
+        from s3_utils import download_file_to_memory
+        
+        logger.info(f"Fetching image from S3: {image_key}")
+        
+        # Download image from S3 into memory
+        image_bytes = download_file_to_memory(
+            bucket=None,  # Uses BUCKET_NAME from env
+            key=image_key
+        )
+        
+        # Determine content type from file extension
+        content_type = "image/jpeg"
+        if image_key.lower().endswith('.png'):
+            content_type = "image/png"
+        elif image_key.lower().endswith('.webp'):
+            content_type = "image/webp"
+        
+        # Return image as streaming response
+        return StreamingResponse(
+            io.BytesIO(image_bytes),
+            media_type=content_type,
+            headers={
+                "Cache-Control": "public, max-age=3600",  # Cache for 1 hour
+                "Access-Control-Allow-Origin": "*"
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"Error fetching image {image_key}: {e}")
+        raise HTTPException(status_code=404, detail=f"Image not found: {str(e)}")
+
+
 @app.get("/wardrobe/items", response_model=List[Dict[str, Any]])
 async def get_all_items(
     limit: int = 100,
@@ -70,17 +117,11 @@ async def get_all_items(
             payload = point.payload
             img_path = payload.get("img_path")
             
-            # Generate presigned URL for the image
+            # Generate proxy URL instead of presigned S3 URL
+            # This bypasses S3 Block Public Access restrictions
             image_url = None
             if img_path:
-                try:
-                    image_url = generate_presigned_url(
-                        bucket=None,  # Uses BUCKET_NAME from env
-                        key=img_path,
-                        expiration=url_expiration
-                    )
-                except Exception as e:
-                    logger.error(f"Failed to generate presigned URL for {img_path}: {e}")
+                image_url = f"http://localhost:8000/wardrobe/image/{img_path}"
             
             # Construct item response
             item = {
