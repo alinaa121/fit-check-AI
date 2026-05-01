@@ -7,7 +7,10 @@ from datetime import datetime
 from typing import Optional, Dict, Any
 from dotenv import load_dotenv
 from qdrant_client import QdrantClient
-from qdrant_client.models import PointStruct
+from qdrant_client.models import (
+    PointStruct, Filter, FieldCondition, MatchValue, MatchAny,
+    PayloadSchemaType
+)
 from sentence_transformers import SentenceTransformer
 from config import *
 
@@ -244,3 +247,90 @@ class WardrobeVectorDB:
             logger.info(f"Updated point {point_id} metadata: {field_name}")
         
         return True
+
+    def count_items(self, filters: Optional[Dict[str, list]] = None) -> int:
+        """Count items in the collection based on metadata filters.
+        
+        Args:
+            filters: Dictionary of metadata filters where all values are lists. Example:
+                {
+                    "primary_category": ["top"],
+                    "season": ["summer", "winter"],
+                    "primary_color": ["blue"],
+                    "style_vibe": ["casual", "sporty"]
+                }
+                If None or empty, returns total count of all items.
+                - All values must be lists
+                - Empty lists or None values will be ignored (no filter applied)
+                - Single item lists match that one value
+                - Multiple item lists match any item in the list (OR logic)
+        
+        Returns:
+            Integer count of matching items
+        """
+        if not filters:
+            # No filters - count all items
+            logger.info("Counting all items (no filters)")
+            try:
+                result = self.client.count(collection_name=self.collection)
+                count = result.count if hasattr(result, 'count') else result
+                logger.info(f"Total items in collection: {count}")
+                return count
+            except Exception as e:
+                logger.error(f"Error counting all items: {e}")
+                return 0
+        
+        # Build filter conditions
+        must_conditions = []
+        
+        for key, value in filters.items():
+            if value is None or not isinstance(value, list) or len(value) == 0:
+                # Skip None, non-list, or empty list values
+                continue
+            
+            if len(value) == 1:
+                # Single item list - use exact match
+                must_conditions.append(
+                    FieldCondition(
+                        key=key,
+                        match=MatchValue(value=value[0])
+                    )
+                )
+            else:
+                # Multiple items - use "any" match
+                must_conditions.append(
+                    FieldCondition(
+                        key=key,
+                        match=MatchAny(any=value)
+                    )
+                )
+        
+        if not must_conditions:
+            # All filters were None or empty - count all items
+            logger.info("All filters were empty, counting all items")
+            try:
+                result = self.client.count(collection_name=self.collection)
+                count = result.count if hasattr(result, 'count') else result
+                logger.info(f"Total items in collection: {count}")
+                return count
+            except Exception as e:
+                logger.error(f"Error counting all items: {e}")
+                return 0
+        
+        # Build the filter structure using proper Qdrant models
+        filter_query = Filter(must=must_conditions)
+        
+        logger.info(f"Counting items with filters: {filters}")
+        logger.debug(f"Filter query: {filter_query}")
+        
+        try:
+            result = self.client.count(
+                collection_name=self.collection,
+                count_filter=filter_query
+            )
+            count = result.count if hasattr(result, 'count') else result
+            logger.info(f"Found {count} items matching filters")
+            return count
+        except Exception as e:
+            logger.error(f"Error counting items with filters: {e}")
+            return 0
