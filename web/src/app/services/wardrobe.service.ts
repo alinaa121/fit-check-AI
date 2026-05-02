@@ -20,6 +20,12 @@ export interface ClothingItem {
   style_vibe: string[];
   created_at: string;
   modified_at: string;
+  score?: number; // Similarity score for search results
+}
+
+export interface RecommendationResponse {
+  caption: string;
+  items: string[]; // Array of image URLs
 }
 
 @Injectable({
@@ -57,5 +63,9 @@ export class WardrobeService {
       field_name: fieldName,
       new_value: newValue
     });
+  }
+
+  recommendItems(query: string): Observable<RecommendationResponse> {
+    return this.http.get<RecommendationResponse>(`${this.apiUrl}/wardrobe/recommend?query=${query}`);
   }
 }

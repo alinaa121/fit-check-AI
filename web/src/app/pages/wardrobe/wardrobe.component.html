@@ -6,6 +6,48 @@
     </div>
   </div>
 
+  <!-- Search Section -->
+  <div class="search-section">
+    <div class="search-box">
+      <input 
+        type="text" 
+        [(ngModel)]="searchQuery" 
+        (keyup.enter)="performSearch()"
+        placeholder="Search or get recommendations (e.g., 'cute airport tops', 'black clothes')"
+        class="search-input"
+        [disabled]="searching">
+      <button 
+        (click)="performSearch()" 
+        class="search-btn"
+        [disabled]="searching">
+        {{ searching ? '⏳' : '🔍' }}
+      </button>
+    </div>
+  </div>
+
+  <!-- Search Results -->
+  <div *ngIf="showSearchResults" class="search-results-container">
+    <button class="close-results" (click)="closeSearchResults()">×</button>
+    
+    <div class="search-results-header">
+      <h2 class="search-title">✨ Recommendations for: "{{ searchQuery }}"</h2>
+    </div>
+
+    <div class="search-caption">
+      <p>{{ searchCaption }}</p>
+    </div>
+
+    <div *ngIf="searchResults.length > 0" class="search-results-grid">
+      <div *ngFor="let imageUrl of searchResults" class="search-result-item">
+        <img [src]="imageUrl" alt="Recommendation" class="search-result-image" loading="lazy">
+      </div>
+    </div>
+
+    <div *ngIf="searchResults.length === 0 && !searching" class="no-results">
+      <p>No items found for your search.</p>
+    </div>
+  </div>
+
   <!-- Category Filter -->
   <div class="filter-container">
     <button 

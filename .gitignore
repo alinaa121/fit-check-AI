@@ -1,0 +1,7 @@
+.env
+.venv/
+*jpg
+*ipynb
+web/.angular/
+web/node_modules/
+*cache*

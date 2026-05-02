@@ -1,7 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { WardrobeService, ClothingItem } from '../../services/wardrobe.service';
+import { WardrobeService, ClothingItem, RecommendationResponse } from '../../services/wardrobe.service';
 
 @Component({
   selector: 'app-wardrobe',
@@ -24,6 +24,13 @@ export class WardrobeComponent implements OnInit {
   editingField: string | null = null;
   editValue: any = null;
   saving = false;
+  
+  // Search properties
+  searchQuery = '';
+  searching = false;
+  searchResults: string[] = []; // Array of image URLs
+  searchCaption = '';
+  showSearchResults = false;
   
   // Filter properties
   categories = ['All', 'Top', 'Bottom', 'Outerwear', 'Footwear', 'Accessory', 'Full-body'];
@@ -63,6 +70,40 @@ export class WardrobeComponent implements OnInit {
 
   selectItem(item: ClothingItem) {
     this.selectedItem = item;
+  }
+
+  performSearch() {
+    if (!this.searchQuery.trim()) {
+      this.searchResults = [];
+      this.searchCaption = '';
+      this.showSearchResults = false;
+      return;
+    }
+
+    this.searching = true;
+    this.searchResults = [];
+    this.searchCaption = '';
+
+    this.wardrobeService.recommendItems(this.searchQuery).subscribe({
+      next: (response: RecommendationResponse) => {
+        this.searchCaption = response.caption;
+        this.searchResults = response.items || [];
+        this.showSearchResults = true;
+        this.searching = false;
+      },
+      error: (err) => {
+        console.error('Search error:', err);
+        this.searching = false;
+        alert('Search failed: ' + (err.error?.detail || 'Unknown error'));
+      }
+    });
+  }
+
+  closeSearchResults() {
+    this.showSearchResults = false;
+    this.searchResults = [];
+    this.searchCaption = '';
+    this.searchQuery = '';
   }
 
   closeModal() {

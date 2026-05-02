@@ -153,6 +153,90 @@ async def get_all_items(
         raise HTTPException(status_code=500, detail=f"Failed to fetch wardrobe items: {str(e)}")
 
 
+@app.get("/wardrobe/search", response_model=Dict[str, Any])
+async def search_wardrobe(query: str):
+    """
+    Search wardrobe with AI-powered query understanding and ranking.
+    
+    This endpoint:
+    1. Extracts structured filters from natural language query
+    2. Searches the wardrobe with semantic and metadata filters
+    3. Ranks results by relevance using AI
+    4. Returns ranked items with metadata and image URLs
+    
+    Args:
+        query (str): Natural language search query (e.g., "blue summer shirts", "casual weekend outfits")
+        
+    Returns:
+        Dict with:
+            - caption: Friendly message describing the results
+            - items: List of ranked items with full metadata and image URLs
+            - count: Number of items returned
+    """
+    try:
+        logger.info(f"Searching wardrobe for query: '{query}'")
+        
+        # Step 1: Extract structured filters from natural language query
+        filters = vdb.extract_filters_from_query(query)
+        logger.info(f"Extracted filters: {filters}")
+        
+        # Step 2: Count items matching filters
+        count = vdb.count_items(filters)
+        logger.info(f"Found {count} items matching filters")
+        
+        # Step 3: Search with filters if found items, otherwise search all
+        search_items = []
+        if count > 1:
+            search_items = vdb.search(query, limit=10, filters=filters)
+        else:
+            search_items = vdb.search(query, limit=10)
+        
+        # Convert to format expected by ranking function
+        items_for_ranking = [
+            {"id": item['id'], "description": item['raw_caption']} 
+            for item in search_items
+        ]
+        logger.info(f"Prepared {len(items_for_ranking)} items for ranking")
+        
+        # Step 4: Rank items by relevance using AI
+        ranked = pipeline.rank_and_filter_results(query, items_for_ranking)
+        
+        if ranked is None:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to rank search results"
+            )
+        
+        # Step 5: Fetch full metadata for ranked items
+        ranked_ids = ranked.get('ranked_item_ids', [])
+        caption = ranked.get('caption', 'Here are your results.')
+        
+        items_with_metadata = vdb.search_by_points(ranked_ids)
+        logger.info(f"Retrieved full metadata for {len(items_with_metadata)} ranked items")
+        
+        # Step 6: Construct response with image URLs
+        result_urls = []
+        for item in items_with_metadata:
+            img_path = item.get('img_path')
+            image_url = f"http://localhost:8000/wardrobe/image/{img_path}" if img_path else None
+            
+            result_urls.append(image_url)
+        
+        logger.info(f"Search completed: {len(result_urls)} items ranked")
+        
+        return {
+            "query": query,
+            "caption": caption,
+            "items": result_urls
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error during wardrobe search: {e}")
+        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
+
+
 @app.post("/wardrobe/upload", response_model=Dict[str, Any])
 async def upload_item(
     file: UploadFile = File(...)
@@ -395,6 +479,85 @@ async def update_item(item_id: str, request: UpdateItemRequest):
             status_code=500,
             detail=f"Update operation failed: {str(e)}"
         )
+
+
+@app.get("/wardrobe/recommend", response_model=Dict[str, Any])
+async def recommend_catalogue_items(query: str):
+    """
+    Recommend clothing items from the catalogue based on a query.
+    
+    This endpoint uses AI to:
+    1. Extract filters from the natural language query
+    2. Search the wardrobe based on those filters
+    3. Rank results by relevance
+    4. Return the top recommendations with image URLs
+    
+    Args:
+        query (str): Natural language query for recommendations (e.g., "cute airport tops")
+        
+    Returns:
+        Dict with:
+            - caption: AI-generated description of the recommendations
+            - items: List of image URLs for the recommended items
+    """
+    try:
+        logger.info(f"Getting recommendations for query: '{query}'")
+        
+        # Extract filters from query
+        filters = vdb.extract_filters_from_query(query)
+        logger.info(f"Extracted Filters: {filters}")
+        
+        # Count items matching filters
+        count = vdb.count_items(filters)
+        logger.info(f"Found {count} items matching filters")
+        
+        # Search with filters if found items, otherwise search all
+        items = []
+        if count > 1:
+            items = vdb.search(query, 10, filters)
+            items = [{"id": item['id'], "description": item['raw_caption']} for item in items]
+        else:
+            items = vdb.search(query, 10)
+            items = [{"id": item['id'], "description": item['raw_caption']} for item in items]
+        
+        logger.info(f"Prepared {len(items)} items for ranking")
+        
+        # Rank and filter results
+        ranked = pipeline.rank_and_filter_results(query, items)
+        
+        if ranked is None:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to rank recommendations"
+            )
+        
+        # Get full metadata for each ranked item ID
+        ranked_ids = ranked.get('ranked_item_ids', [])
+        caption = ranked.get('caption', 'Here are our recommendations.')
+        
+        # Fetch full item details from vector DB
+        items_with_metadata = vdb.search_by_points(ranked_ids)
+        logger.info(f"Retrieved full metadata for {len(items_with_metadata)} recommendations")
+        
+        # Construct image URLs
+        result_urls = []
+        for item in items_with_metadata:
+            img_path = item.get('img_path')
+            image_url = f"http://localhost:8000/wardrobe/image/{img_path}" if img_path else None
+            result_urls.append(image_url)
+        
+        logger.info(f"Generated {len(result_urls)} recommendation URLs")
+        
+        return {
+            "caption": caption,
+            "items": result_urls
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating recommendations: {e}")
+        raise HTTPException(status_code=500, detail=f"Recommendation failed: {str(e)}")
 
 
 if __name__ == "__main__":

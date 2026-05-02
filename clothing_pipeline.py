@@ -220,4 +220,64 @@ class ClothingPipeline:
             })
             return result_copy
     
-    
+    def rank_and_filter_results(self, query: str, items: list) -> Optional[Dict]:
+        """
+        Ranks and filters clothing items by relevance to user query using AI.
+
+        Args:
+            query (str): User's search query or intent (e.g., "blue summer shirts", "outfit for beach day")
+            items (list): List of dictionaries, each with 'id' and 'description' fields
+
+        Returns:
+            Optional[Dict]: {
+                "ranked_item_ids": [...],  # Ordered list of most relevant IDs (can be empty)
+                "caption": "..."           # Friendly message about results
+            }
+            Returns None if error occurs.
+        """
+        if not items:
+            logging.warning("No items provided for ranking")
+            return {
+                "ranked_item_ids": [],
+                "caption": "No items to rank."
+            }
+        
+        logging.info(f"Ranking {len(items)} items for query: '{query}'")
+        
+        # Build the items text for the prompt
+        items_text = "\n".join([
+            f"- ID: {item.get('id', 'unknown')}, Description: {item.get('description', 'No description')}"
+            for item in items
+        ])
+        
+        # Construct the full prompt
+        full_prompt = f"{rank_and_return_clothes_prompt}\n\nUser Query: {query}\n\nItems:\n{items_text}"
+        
+        try:
+            tools = types.Tool(function_declarations=[rank_and_return_clothes_function])
+            response = self.gemini_client.call_gemini(
+                content_parts=[types.Part(text=full_prompt)],
+                model=rank_and_return_clothes_model,
+                config=types.GenerateContentConfig(
+                    tools=[tools],
+                    tool_config=types.ToolConfig(
+                        function_calling_config=types.FunctionCallingConfig(mode='ANY')
+                    )
+                )
+            )
+            
+            if response and response.candidates[0].content.parts[0].function_call:
+                function_call = response.candidates[0].content.parts[0].function_call
+                result = {
+                    "ranked_item_ids": list(function_call.args.get('ranked_item_ids', [])),
+                    "caption": function_call.args.get('caption', 'Here are your results.')
+                }
+                logging.info(f"Ranked {len(result['ranked_item_ids'])} items. Caption: {result['caption']}")
+                return result
+            else:
+                logging.error("No function call in response")
+                return None
+                
+        except Exception as e:
+            logging.error(f"Error ranking items: {e}")
+            return None

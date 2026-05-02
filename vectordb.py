@@ -12,6 +12,8 @@ from qdrant_client.models import (
     PayloadSchemaType
 )
 from sentence_transformers import SentenceTransformer
+from gemini import GeminiClient
+from google.genai import types
 from config import *
 
 # Configure logger
@@ -35,6 +37,7 @@ class WardrobeVectorDB:
             check_compatibility=False,
         )
         self.model = SentenceTransformer(EMBEDDING_MODEL)
+        self.gemini_client = GeminiClient()
         logger.info(f"Initialized WardrobeVectorDB with collection '{collection}'")
 
     def embed(self, texts: list[str]) -> list[list[float]]:
@@ -87,15 +90,71 @@ class WardrobeVectorDB:
         logger.info(f"Added point {point_id} with category '{metadata.get('primary_category')}' sub '{metadata.get('sub_category')}' and img_path '{img_path}'")
         return point_id
 
-    def search(self, query: str, limit: int = 5):
-        """Search for similar items. Returns list of dicts with all metadata and score."""
+    def search(
+        self, 
+        query: str, 
+        limit: int = 5,
+        filters: Optional[Dict[str, list]] = None,
+    ):
+        """Search for similar items with optional metadata filters.
+        
+        Args:
+            query: Text query for semantic search
+            limit: Maximum number of results to return
+            filters: Dictionary of metadata filters where all values are lists. Example:
+                {
+                    "primary_category": ["Top"],
+                    "season": ["Summer", "Spring"],
+                    "primary_color": ["Blue"],
+                    "style_vibe": ["Casual", "Minimalist"]
+                }
+                If None or empty, no filters applied (semantic search only).
+                - All values must be lists
+                - Empty lists or None values will be ignored (no filter applied)
+                - Single item lists match that one value
+                - Multiple item lists match any item in the list (OR logic)
+                - Supported keys: primary_category, sub_category, primary_color, 
+                  secondary_colors, pattern, material, season, weather, occasion, 
+                  fit, style_vibe
+            
+        Returns:
+            List of dicts with all metadata and similarity score
+        """
         qvec = self.embed([query])[0]
-        logger.info(f"Searching for: '{query}' with limit={limit}")
-        # qdrant-client >= 1.7 uses query_points; fallback to search for older versions
+        
+        # Build filter conditions
+        filter_conditions = []
+        
+        if filters:
+            for key, value in filters.items():
+                if value is None or not isinstance(value, list) or len(value) == 0:
+                    # Skip None, non-list, or empty list values
+                    continue
+                
+                if len(value) == 1:
+                    # Single item list - use exact match
+                    filter_conditions.append(
+                        FieldCondition(key=key, match=MatchValue(value=value[0]))
+                    )
+                else:
+                    # Multiple items - use "any" match
+                    filter_conditions.append(
+                        FieldCondition(key=key, match=MatchAny(any=value))
+                    )
+        
+        # Create filter object if any conditions exist
+        query_filter = Filter(must=filter_conditions) if filter_conditions else None
+        
+        # Log the search
+        filter_desc = f" with {len(filter_conditions)} filter(s)" if filter_conditions else ""
+        logger.info(f"Searching for: '{query}'{filter_desc}, limit={limit}")
+        
+        # Perform search with filter
         try:
             results = self.client.query_points(
                 collection_name=self.collection,
                 query=qvec,
+                query_filter=query_filter,
                 limit=limit,
                 with_payload=True,
             )
@@ -161,6 +220,84 @@ class WardrobeVectorDB:
         except Exception as e:
             logger.error(f"Error fetching point {point_id}: {e}")
             return None
+
+    def search_by_points(self, point_ids: list[str]) -> list[Dict[str, Any]]:
+        """Get metadata for multiple points by their IDs.
+        
+        Args:
+            point_ids: List of point IDs to retrieve
+            
+        Returns:
+            List of dictionaries with metadata for each point. Format:
+            [
+                {
+                    "id": "point_id_1",
+                    "img_path": "...",
+                    "raw_caption": "...",
+                    "primary_category": "...",
+                    "sub_category": "...",
+                    "primary_color": "...",
+                    "secondary_colors": [...],
+                    "pattern": "...",
+                    "material": "...",
+                    "season": [...],
+                    "weather": [...],
+                    "occasion": [...],
+                    "fit": "...",
+                    "style_vibe": [...],
+                    "created_at": "...",
+                    "modified_at": "..."
+                },
+                ...
+            ]
+            Points not found will be skipped (not included in results).
+        """
+        if not point_ids:
+            logger.warning("search_by_points called with empty point_ids list")
+            return []
+            
+        logger.info(f"Fetching {len(point_ids)} points: {point_ids}")
+        try:
+            points = self.client.retrieve(
+                collection_name=self.collection,
+                ids=point_ids,
+                with_payload=True,
+                with_vectors=False,
+            )
+            
+            if not points:
+                logger.warning(f"None of the requested points were found")
+                return []
+            
+            # Extract metadata from each point
+            output = []
+            for point in points:
+                payload = point.payload if hasattr(point, "payload") else {}
+                output.append({
+                    "id": point.id if hasattr(point, "id") else None,
+                    "img_path": payload.get("img_path"),
+                    "raw_caption": payload.get("raw_caption"),
+                    "primary_category": payload.get("primary_category"),
+                    "sub_category": payload.get("sub_category"),
+                    "primary_color": payload.get("primary_color"),
+                    "secondary_colors": payload.get("secondary_colors", []),
+                    "pattern": payload.get("pattern"),
+                    "material": payload.get("material"),
+                    "season": payload.get("season", []),
+                    "weather": payload.get("weather", []),
+                    "occasion": payload.get("occasion", []),
+                    "fit": payload.get("fit"),
+                    "style_vibe": payload.get("style_vibe", []),
+                    "created_at": payload.get("created_at"),
+                    "modified_at": payload.get("modified_at"),
+                })
+            
+            logger.info(f"Retrieved {len(output)} points out of {len(point_ids)} requested")
+            return output
+            
+        except Exception as e:
+            logger.error(f"Error fetching points {point_ids}: {e}")
+            return []
 
     def delete_by_image_path(self, img_path: str) -> bool:
         """Delete a point by image path. Returns True on success."""
@@ -334,3 +471,52 @@ class WardrobeVectorDB:
         except Exception as e:
             logger.error(f"Error counting items with filters: {e}")
             return 0
+        
+    def extract_filters_from_query(self, query: str) -> Optional[Dict]:
+        """
+        Extracts structured filters from a natural language query using Gemini.
+        Returns a dictionary with filter keys and list values ready for vdb.search().
+
+        Args:
+            query (str): Natural language query (e.g., "show me blue summer shirts")
+
+        Returns:
+            Optional[Dict]: Dictionary with filter arrays if successful, else None.
+            Example: {
+                "primary_category": ["Top"],
+                "primary_color": ["Blue"],
+                "season": ["Summer"]
+            }
+        """
+        logger.info(f"Extracting filters from query: '{query}'")
+        
+        try:
+            tools = types.Tool(function_declarations=[extract_vdb_filters_function])
+            response = self.gemini_client.call_gemini(
+                content_parts = [
+                    types.Part(text=extract_vdb_filters_prompt),
+                    types.Part(text=f"\n\nUser Query: {query}")
+                ],
+                model=extract_vdb_filters_model,  # Reuse the same model
+                config = types.GenerateContentConfig(
+                    tools=[tools],
+                    tool_config=types.ToolConfig(
+                        function_calling_config=types.FunctionCallingConfig(
+                            mode='ANY'
+                        )
+                    )
+                )
+            )
+        
+            if response and response.candidates[0].content.parts[0].function_call:
+                function_call = response.candidates[0].content.parts[0].function_call
+                filters = dict(function_call.args)
+                logger.info(f"Extracted filters: {filters}")
+                return filters if filters else {}
+            else:
+                logger.warning("No function call in response, returning empty filters")
+                return {}
+                
+        except Exception as e:
+            logger.error(f"Error extracting filters from query: {e}")
+            return None
