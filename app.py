@@ -9,6 +9,7 @@ import uuid
 from vectordb import WardrobeVectorDB
 from s3_utils import *
 from clothing_pipeline import ClothingPipeline
+from agent import run_agent
 
 # Configure logging
 logging.basicConfig(
@@ -539,25 +540,116 @@ async def recommend_catalogue_items(query: str):
         items_with_metadata = vdb.search_by_points(ranked_ids)
         logger.info(f"Retrieved full metadata for {len(items_with_metadata)} recommendations")
         
-        # Construct image URLs
-        result_urls = []
-        for item in items_with_metadata:
-            img_path = item.get('img_path')
-            image_url = f"http://localhost:8000/wardrobe/image/{img_path}" if img_path else None
-            result_urls.append(image_url)
-        
-        logger.info(f"Generated {len(result_urls)} recommendation URLs")
-        
         return {
             "caption": caption,
-            "items": result_urls
+            "items": [item.get('img_path', '') for item in items_with_metadata]
         }
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error generating recommendations: {e}")
+        logger.error(f"Error during recommendations: {e}")
         raise HTTPException(status_code=500, detail=f"Recommendation failed: {str(e)}")
+
+
+@app.post("/wardrobe/agent", response_model=Dict[str, Any])
+async def wardrobe_agent(query: str):
+    """
+    Agentic endpoint for intelligent wardrobe outfit generation.
+    
+    The Gemini LLM agent autonomously decides:
+    - Which wardrobe items to search for based on user needs
+    - How to combine items into outfit suggestions
+    - When it has generated satisfactory results
+    
+    Returns enriched combinations with image URLs and descriptions for each item.
+    
+    Args:
+        query (str): Natural language description of desired outfits
+                    (e.g., "I need blue summer outfits for beach days")
+        
+    Returns:
+        Dict with:
+            - combinations: List of outfit combinations with enriched items (id, description, link)
+            - count: Number of combinations generated
+            - input: The original user query
+            - status: "success" or "error"
+    """
+    try:
+        logger.info(f"Wardrobe agent received query: '{query}'")
+        
+        # Run the agentic agent
+        result = run_agent(query)
+        
+        if result.get("status") == "error":
+            logger.error(f"Agent error: {result.get('error')}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Agent failed: {result.get('error')}"
+            )
+        
+        # Helper function to enrich a single item with metadata and image URL
+        def enrich_item(item: Dict[str, Any]) -> Dict[str, Any]:
+            if not item or not item.get("id"):
+                return None
+            
+            try:
+                # Fetch full metadata from vector DB
+                item_id = item.get("id")
+                point_data = vdb.get_by_id(item_id)
+                
+                if not point_data:
+                    return item  # Return original if not found
+                
+                # Extract payload (metadata)
+                metadata = point_data.get("payload", {})
+                
+                # Build image URL
+                img_path = metadata.get("img_path")
+                image_url = f"http://localhost:8000/wardrobe/image/{img_path}" if img_path else None
+                
+                # Enrich with description and link
+                return {
+                    "id": item_id,
+                    "description": item.get("description", metadata.get("raw_caption", "")),
+                    "link": image_url,
+                    "raw_caption": metadata.get("raw_caption"),
+                    "primary_category": metadata.get("primary_category"),
+                    "primary_color": metadata.get("primary_color"),
+                }
+            except Exception as e:
+                logger.warning(f"Failed to enrich item {item.get('id')}: {e}")
+                return item
+        
+        # Enrich all combinations with metadata and image URLs
+        enriched_combinations = []
+        for combo in result.get("combinations", []):
+            enriched_combo = {
+                "combo_id": combo.get("combo_id"),
+                "top": enrich_item(combo.get("top")),
+                "bottom": enrich_item(combo.get("bottom")),
+                "full_body": enrich_item(combo.get("full_body")),
+                "footwear": enrich_item(combo.get("footwear")),
+                "accessories": [enrich_item(acc) for acc in combo.get("accessories", [])],
+                "reasoning": combo.get("reasoning"),
+                "style_tips": combo.get("style_tips")
+            }
+            enriched_combinations.append(enriched_combo)
+        
+        logger.info(f"Agent generated {result.get('count', 0)} outfit combinations with enriched metadata")
+        
+        return {
+            "combinations": enriched_combinations,
+            "count": result.get("count", 0),
+            "input": result.get("input"),
+            "status": "success"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in wardrobe agent endpoint: {e}")
+        raise HTTPException(status_code=500, detail=f"Agent endpoint failed: {str(e)}")
 
 
 if __name__ == "__main__":

@@ -253,5 +253,153 @@ Rules:
 Caption must be warm, friendly, personalized (e.g., "Here are your blue jeans!", "Found these cozy sweaters for winter!", "Sorry, couldn't find anything matching that").
 """
 
+# Outfit combination generation
+generate_outfit_combinations_model = "gemini-3-flash-preview"
+
+generate_outfit_combinations_json_schema = {
+    "type": "object",
+    "properties": {
+        "combinations": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "combo_id": {
+                        "type": "integer",
+                        "description": "Unique combination ID"
+                    },
+                    "top": {
+                        "oneOf": [
+                            {"type": "null"},
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "id": {"type": "string"},
+                                    "description": {"type": "string"}
+                                },
+                                "required": ["id", "description"]
+                            }
+                        ]
+                    },
+                    "bottom": {
+                        "oneOf": [
+                            {"type": "null"},
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "id": {"type": "string"},
+                                    "description": {"type": "string"}
+                                },
+                                "required": ["id", "description"]
+                            }
+                        ]
+                    },
+                    "full_body": {
+                        "oneOf": [
+                            {"type": "null"},
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "id": {"type": "string"},
+                                    "description": {"type": "string"}
+                                },
+                                "required": ["id", "description"]
+                            }
+                        ]
+                    },
+                    "footwear": {
+                        "oneOf": [
+                            {"type": "null"},
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "id": {"type": "string"},
+                                    "description": {"type": "string"}
+                                },
+                                "required": ["id", "description"]
+                            }
+                        ]
+                    },
+                    "accessories": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {"type": "string"},
+                                "description": {"type": "string"}
+                            },
+                            "required": ["id", "description"]
+                        }
+                    },
+                    "reasoning": {
+                        "type": "string",
+                        "description": "2-3 sentences explaining why this combination works"
+                    },
+                    "style_tips": {
+                        "type": "string",
+                        "description": "Optional styling suggestions"
+                    }
+                },
+                "required": ["combo_id", "reasoning"]
+            }
+        }
+    },
+    "required": ["combinations"]
+}
+
+generate_outfit_combinations_prompt = """You are an expert fashion stylist. Given the following wardrobe items and the request context, create outfit combinations that specifically match the styling goal.
+
+REQUEST CONTEXT:
+{agent_request}
+
+AVAILABLE ITEMS:
+
+{items_text}
+
+REQUIREMENTS:
+1. Each combination MUST have EITHER (top AND bottom) OR (full_body item). Not both.
+2. FOOTWEAR and ACCESSORIES are OPTIONAL (may be null or empty list)
+3. You can reuse items across different combinations
+4. Provide reasoning for why each combination works
+5. Consider color coordination, style cohesion, and overall aesthetic
+6. CRITICALLY: Ensure each combination aligns with the user's request (occasion, vibe, colors, etc.)
+
+Return ONLY valid JSON with NO markdown formatting, NO code blocks, and NO extra text. Use this exact structure:
+{{
+    "combinations": [
+        {{
+            "combo_id": 1,
+            "top": {{"id": "<item_id>", "description": "<item_description>"}} or null,
+            "bottom": {{"id": "<item_id>", "description": "<item_description>"}} or null,
+            "full_body": {{"id": "<item_id>", "description": "<item_description>"}} or null,
+            "footwear": {{"id": "<item_id>", "description": "<item_description>"}} or null,
+            "accessories": [{{"id": "<item_id>", "description": "<item_description>"}}] or [],
+            "reasoning": "<2-3 sentences explaining why this combination works>",
+            "style_tips": "<optional styling suggestions>"
+        }}
+    ]
+}}"""
+
+# Agent system prompt for wardrobe AI
+agent_system_prompt = """You are a fashion stylist AI assistant helping users find and combine wardrobe items into satisfying outfits.
+
+IMPORTANT: You have exactly 2 tool calls available:
+1. First call: search_wardrobe - to find items matching user requirements
+2. Second call: generate_outfit_combinations - to create outfit combinations from items
+
+DECISION LOGIC:
+- User query → Search wardrobe for matching items
+- Items found → Generate outfit combinations
+- After generating combinations:
+  * If combinations match the user's needs (RELEVANCE ✓ and QUALITY ✓) → Provide your conclusion and STOP
+  * If you need different items → You can search again with refined query
+
+DO NOT make more than 2 tool calls without explicit user request for refinement."""
+
+# Agent LLM model
+agent_model = "gemini-3-flash-preview"
+agent_temperature = 0.7
+agent_top_p = 0.9
+
 #s3
 key="images"
