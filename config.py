@@ -212,189 +212,59 @@ You are a fashion search query analyzer. Your task is to extract structured filt
 Analyze the query and return the structured filters.
 """
 
-# Rank and return clothes
-rank_and_return_clothes_model = "gemini-3-flash-preview"
-rank_and_return_clothes_function = {
-    "name": "rank_and_return_clothes",
-    "description": "Ranks clothing items by relevance to user query based on their descriptions. Returns ordered list of most relevant item IDs and a friendly caption.",
-    "parameters": {
-        "type": "object",
-        "properties": {
-            "ranked_item_ids": {
-                "type": "array",
-                "items": {
-                    "type": "string"
-                },
-                "description": "Ordered list of item IDs from most to least relevant to the query. Exclude items that are not relevant. Can be empty if no items match."
-            },
-            "caption": {
-                "type": "string",
-                "description": "A friendly, natural caption describing the results. Make it personalized, girly and warm."
-            }
-        },
-        "required": ["ranked_item_ids", "caption"]
-    }
-}
+# Agent system prompt for wardrobe AI - TRULY AGENTIC
+agent_system_prompt = """You are a friendly, encouraging personal fashion stylist and your best friend's style advisor rolled into one AI. Your vibe is warm, supportive, and genuinely excited about helping users create amazing outfits and feel confident about their wardrobe.
 
-rank_and_return_clothes_prompt = """
-You are a personal wardrobe stylist AI. Rank clothing items by relevance to the user's query.
+PERSONALITY & TONE:
+- You're like a girl best friend giving style advice over coffee - warm, genuine, enthusiastic
+- Always encouraging and body-positive
+- Celebrate what they have, suggest thoughtful improvements
+- Use natural, conversational language (not robotic)
+- Be creative and fun with styling suggestions
+- Understand that fashion is personal and subjective
+- Keep responses SHORT and punchy - no long essays!
 
-You'll receive a user query and a list of items (each with id and description). Analyze each item's description and rank by relevance, considering:
-- Explicit attributes (color, type, style, material)
-- Implicit intent (e.g., "beach day" → casual, light, summer)
-- Occasion and outfit compatibility
+RESPONSE FORMAT:
+⚠️ ALWAYS use this format for ANY wardrobe item: **item_name (uuid)** - wrap in markdown bold and include the full UUID
+Examples: **blue jeans (a1b2c3d4-e5f6-4789-0abc-def123456789)**, **oversized blazer (xyz789...)**
+- Write like you're texting a friend, not writing an article
+- Use markdown naturally: **bold** for emphasis and ALL wardrobe items, *italic* for flavor
+- Sprinkle in markdown where it feels right - no forced structure
+- Line breaks for readability, not because you "need" a section header
+- Use lists/headers ONLY when genuinely helpful (like 3+ items)
+- Example: "I'd pair your **denim jacket (id3)** with those **white sneakers (id7)** for a chill vibe. Super clean and effortless!"
 
-Rules:
-- Return ranked_item_ids ordered from most to least relevant
-- EXCLUDE irrelevant items (fewer results is better than noise)
-- If no good matches exist, return close alternatives but note this in caption
-- If nothing relevant, return empty array with apologetic caption
+AVAILABLE TOOLS:
+1. search_wardrobe: Find items matching user requirements (colors, styles, categories, etc.)
+2. generate_outfit_combinations: Create outfit pairings from a list of items
+3. get_wardrobe_recommendations: Provide styling advice, gap analysis, or shopping suggestions
 
-Caption must be warm, friendly, personalized (e.g., "Here are your blue jeans!", "Found these cozy sweaters for winter!", "Sorry, couldn't find anything matching that").
+CRITICAL: ALWAYS REFERENCE ITEMS BY THEIR IDs
+- When you mention any clothing item from the wardrobe, reference it by ID like this: "the blue shirt (id1)" or "your black jeans (id2)"
+- This helps the frontend render and display the actual items
+- Example: "I love pairing your oversized blazer (id5) with those slim black trousers (id8) for a polished look"
+- If items are suggestions for shopping (not in wardrobe), mention them without IDs
+
+YOUR DECISION LOGIC - BE TRULY AGENTIC:
+Analyze the user's request and intelligently decide which tool(s) to call:
+
+- "Show me blue shirts" → search_wardrobe only
+- "Create outfit with my red top" → search_wardrobe, then generate_outfit_combinations
+- "What should I add to my wardrobe?" → get_wardrobe_recommendations with analysis_type="gaps"
+- "Style ideas for summer" → search_wardrobe, then get_wardrobe_recommendations
+- "What goes with..." → search_wardrobe, then get_wardrobe_recommendations with analysis_type="pairing"
+- "Help me organize/understand my wardrobe" → get_wardrobe_recommendations with analysis_type="suggestions"
+
+GUIDELINES:
+- You decide which tools to call based on the request - NOT a fixed workflow
+- You can call 1 tool or multiple tools as needed
+- STOP when you have a complete answer
+- Be helpful: provide reasoning for your suggestions ("Why this works: ...")
+- Ask clarifying questions if the request is vague ("Are you looking for casual or professional?")
+- Always include styling tips and practical advice
+- Make them feel excited about their wardrobe, not limited by it
+- KEEP IT BRIEF - quality over quantity!
 """
-
-# Outfit combination generation
-generate_outfit_combinations_model = "gemini-3-flash-preview"
-
-generate_outfit_combinations_json_schema = {
-    "type": "object",
-    "properties": {
-        "combinations": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "combo_id": {
-                        "type": "integer",
-                        "description": "Unique combination ID"
-                    },
-                    "top": {
-                        "oneOf": [
-                            {"type": "null"},
-                            {
-                                "type": "object",
-                                "properties": {
-                                    "id": {"type": "string"},
-                                    "description": {"type": "string"}
-                                },
-                                "required": ["id", "description"]
-                            }
-                        ]
-                    },
-                    "bottom": {
-                        "oneOf": [
-                            {"type": "null"},
-                            {
-                                "type": "object",
-                                "properties": {
-                                    "id": {"type": "string"},
-                                    "description": {"type": "string"}
-                                },
-                                "required": ["id", "description"]
-                            }
-                        ]
-                    },
-                    "full_body": {
-                        "oneOf": [
-                            {"type": "null"},
-                            {
-                                "type": "object",
-                                "properties": {
-                                    "id": {"type": "string"},
-                                    "description": {"type": "string"}
-                                },
-                                "required": ["id", "description"]
-                            }
-                        ]
-                    },
-                    "footwear": {
-                        "oneOf": [
-                            {"type": "null"},
-                            {
-                                "type": "object",
-                                "properties": {
-                                    "id": {"type": "string"},
-                                    "description": {"type": "string"}
-                                },
-                                "required": ["id", "description"]
-                            }
-                        ]
-                    },
-                    "accessories": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "id": {"type": "string"},
-                                "description": {"type": "string"}
-                            },
-                            "required": ["id", "description"]
-                        }
-                    },
-                    "reasoning": {
-                        "type": "string",
-                        "description": "2-3 sentences explaining why this combination works"
-                    },
-                    "style_tips": {
-                        "type": "string",
-                        "description": "Optional styling suggestions"
-                    }
-                },
-                "required": ["combo_id", "reasoning"]
-            }
-        }
-    },
-    "required": ["combinations"]
-}
-
-generate_outfit_combinations_prompt = """You are an expert fashion stylist. Given the following wardrobe items and the request context, create outfit combinations that specifically match the styling goal.
-
-REQUEST CONTEXT:
-{agent_request}
-
-AVAILABLE ITEMS:
-
-{items_text}
-
-REQUIREMENTS:
-1. Each combination MUST have EITHER (top AND bottom) OR (full_body item). Not both.
-2. FOOTWEAR and ACCESSORIES are OPTIONAL (may be null or empty list)
-3. You can reuse items across different combinations
-4. Provide reasoning for why each combination works
-5. Consider color coordination, style cohesion, and overall aesthetic
-6. CRITICALLY: Ensure each combination aligns with the user's request (occasion, vibe, colors, etc.)
-
-Return ONLY valid JSON with NO markdown formatting, NO code blocks, and NO extra text. Use this exact structure:
-{{
-    "combinations": [
-        {{
-            "combo_id": 1,
-            "top": {{"id": "<item_id>", "description": "<item_description>"}} or null,
-            "bottom": {{"id": "<item_id>", "description": "<item_description>"}} or null,
-            "full_body": {{"id": "<item_id>", "description": "<item_description>"}} or null,
-            "footwear": {{"id": "<item_id>", "description": "<item_description>"}} or null,
-            "accessories": [{{"id": "<item_id>", "description": "<item_description>"}}] or [],
-            "reasoning": "<2-3 sentences explaining why this combination works>",
-            "style_tips": "<optional styling suggestions>"
-        }}
-    ]
-}}"""
-
-# Agent system prompt for wardrobe AI
-agent_system_prompt = """You are a fashion stylist AI assistant helping users find and combine wardrobe items into satisfying outfits.
-
-IMPORTANT: You have exactly 2 tool calls available:
-1. First call: search_wardrobe - to find items matching user requirements
-2. Second call: generate_outfit_combinations - to create outfit combinations from items
-
-DECISION LOGIC:
-- User query → Search wardrobe for matching items
-- Items found → Generate outfit combinations
-- After generating combinations:
-  * If combinations match the user's needs (RELEVANCE ✓ and QUALITY ✓) → Provide your conclusion and STOP
-  * If you need different items → You can search again with refined query
-
-DO NOT make more than 2 tool calls without explicit user request for refinement."""
 
 # Agent LLM model
 agent_model = "gemini-3-flash-preview"

@@ -8,71 +8,18 @@
         <p class="message-text">{{ message.query }}</p>
       </div>
 
-      <!-- Agent message with combinations -->
+      <!-- Agent message with markdown text response -->
       <div *ngIf="message.type === 'agent'" class="message-content agent-message">
-        <div *ngIf="message.response">
-          <!-- Welcome message (first message) -->
-          <div *ngIf="message.response.count === 0 && message.input === ''" class="no-results">
-            <p style="font-size: 1.1em; font-weight: 500;">Hey! I'm your AI fashion stylist</p>
-            <p style="margin-top: 8px; color: #666;">Describe what kind of outfits you're looking for, and I'll search your wardrobe to create the perfect combinations for you.</p>
-            <p style="font-size: 0.9em; margin-top: 12px; color: #999;">Try: "Show me casual summer looks" or "I need professional outfits for meetings"</p>
-          </div>
-
-          <!-- No results found after search -->
-          <div *ngIf="message.response.count === 0 && message.input !== ''" class="no-results error-state">
-            <p style="font-size: 1.1em; margin: 0 0 10px 0;">Hmm, that's tricky!</p>
-            <p style="color: #666; margin: 8px 0;">I searched everywhere for "<strong>{{ message.input }}</strong>" but didn't find matching combinations. {{ getEncouragementMessage() }}</p>
-          </div>
-
-          <!-- Display combinations if found -->
-          <div *ngIf="message.response.count > 0" class="combinations-container">
-            <p class="result-count celebration">{{ getCelebrationMessage() }}</p>
-            
-            <div *ngFor="let combo of message.response.combinations; let i = index" class="combination-card">
-              <div class="combo-header">
-                <h4>Outfit {{ combo.combo_id }}</h4>
-                <p class="reasoning">{{ combo.reasoning }}</p>
-                <p *ngIf="combo.style_tips" class="style-tips">{{ combo.style_tips }}</p>
-              </div>
-
-              <!-- Items grid -->
-              <div class="items-grid">
-                <!-- Top -->
-                <div *ngIf="combo.top" class="item-slot">
-                  <div class="item-label">Top</div>
-                  <img [src]="combo.top.link" [alt]="combo.top.description" class="item-image" (click)="openImage(combo.top.link)">
-                </div>
-
-                <!-- Bottom -->
-                <div *ngIf="combo.bottom" class="item-slot">
-                  <div class="item-label">Bottom</div>
-                  <img [src]="combo.bottom.link" [alt]="combo.bottom.description" class="item-image" (click)="openImage(combo.bottom.link)">
-                </div>
-
-                <!-- Full Body -->
-                <div *ngIf="combo.full_body" class="item-slot">
-                  <div class="item-label">Full Body</div>
-                  <img [src]="combo.full_body.link" [alt]="combo.full_body.description" class="item-image" (click)="openImage(combo.full_body.link)">
-                </div>
-
-                <!-- Footwear -->
-                <div *ngIf="combo.footwear" class="item-slot">
-                  <div class="item-label">Footwear</div>
-                  <img [src]="combo.footwear.link" [alt]="combo.footwear.description" class="item-image" (click)="openImage(combo.footwear.link)">
-                </div>
-              </div>
-
-              <!-- Accessories -->
-              <div *ngIf="getAccessories(combo).length > 0" class="accessories-section">
-                <p class="accessories-label">Accessories</p>
-                <div class="accessories-grid">
-                  <div *ngFor="let acc of getAccessories(combo)" class="accessory-slot">
-                    <img [src]="acc.link" [alt]="acc.description" class="accessory-image" (click)="openImage(acc.link)">
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+        <!-- Markdown response with hover image tooltips -->
+        <div *ngIf="message.response && message.response.agent_response" 
+             class="markdown-response" 
+             [innerHTML]="message.renderedMarkdown"></div>
+        
+        <!-- Fallback for welcome message (first message) -->
+        <div *ngIf="!message.response || !message.response.agent_response" class="no-results">
+          <p style="font-size: 1.1em; font-weight: 500;">Hey! I'm your AI fashion stylist</p>
+          <p style="margin-top: 8px; color: #666;">Describe what kind of outfits you're looking for, and I'll search your wardrobe to create the perfect combinations for you.</p>
+          <p style="font-size: 0.9em; margin-top: 12px; color: #999;">Try: "Show me casual summer looks" or "I need professional outfits for meetings"</p>
         </div>
       </div>
     </div>

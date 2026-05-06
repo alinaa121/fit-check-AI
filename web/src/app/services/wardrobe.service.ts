@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
 
 export interface ClothingItem {
   id: string;
@@ -66,6 +67,16 @@ export class WardrobeService {
   }
 
   recommendItems(query: string): Observable<RecommendationResponse> {
-    return this.http.get<RecommendationResponse>(`${this.apiUrl}/wardrobe/recommend?query=${query}`);
+    return this.http.get<any>(`${this.apiUrl}/wardrobe/recommend?query=${query}`).pipe(
+      // Transform img_path to full image URLs
+      map((response: any) => ({
+        caption: response.caption,
+        items: (response.items || []).map((imgPath: string) => 
+          imgPath.startsWith('http') 
+            ? imgPath 
+            : `${this.apiUrl}/wardrobe/image/${imgPath}`
+        )
+      }))
+    );
   }
 }

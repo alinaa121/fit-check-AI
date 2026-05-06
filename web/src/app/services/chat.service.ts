@@ -23,10 +23,11 @@ export interface OutfitCombination {
 }
 
 export interface AgentResponse {
-  combinations: OutfitCombination[];
-  count: number;
+  combinations?: OutfitCombination[];
+  count?: number;
   input: string;
   status: string;
+  agent_response: string; // Markdown text response from agent
 }
 
 @Injectable({
@@ -39,7 +40,7 @@ export class ChatService {
 
   /**
    * Call the wardrobe agent with a natural language query.
-   * Returns outfit combinations with enriched metadata and image links.
+   * Returns markdown text response with embedded image links.
    */
   callAgent(query: string): Observable<AgentResponse> {
     return this.http.post<AgentResponse>(`${this.apiUrl}/wardrobe/agent?query=${encodeURIComponent(query)}`, {});

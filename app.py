@@ -588,62 +588,16 @@ async def wardrobe_agent(query: str):
                 detail=f"Agent failed: {result.get('error')}"
             )
         
-        # Helper function to enrich a single item with metadata and image URL
-        def enrich_item(item: Dict[str, Any]) -> Dict[str, Any]:
-            if not item or not item.get("id"):
-                return None
-            
-            try:
-                # Fetch full metadata from vector DB
-                item_id = item.get("id")
-                point_data = vdb.get_by_id(item_id)
-                
-                if not point_data:
-                    return item  # Return original if not found
-                
-                # Extract payload (metadata)
-                metadata = point_data.get("payload", {})
-                
-                # Build image URL
-                img_path = metadata.get("img_path")
-                image_url = f"http://localhost:8000/wardrobe/image/{img_path}" if img_path else None
-                
-                # Enrich with description and link
-                return {
-                    "id": item_id,
-                    "description": item.get("description", metadata.get("raw_caption", "")),
-                    "link": image_url,
-                    "raw_caption": metadata.get("raw_caption"),
-                    "primary_category": metadata.get("primary_category"),
-                    "primary_color": metadata.get("primary_color"),
-                }
-            except Exception as e:
-                logger.warning(f"Failed to enrich item {item.get('id')}: {e}")
-                return item
-        
-        # Enrich all combinations with metadata and image URLs
-        enriched_combinations = []
-        for combo in result.get("combinations", []):
-            enriched_combo = {
-                "combo_id": combo.get("combo_id"),
-                "top": enrich_item(combo.get("top")),
-                "bottom": enrich_item(combo.get("bottom")),
-                "full_body": enrich_item(combo.get("full_body")),
-                "footwear": enrich_item(combo.get("footwear")),
-                "accessories": [enrich_item(acc) for acc in combo.get("accessories", [])],
-                "reasoning": combo.get("reasoning"),
-                "style_tips": combo.get("style_tips")
-            }
-            enriched_combinations.append(enriched_combo)
-        
-        logger.info(f"Agent generated {result.get('count', 0)} outfit combinations with enriched metadata")
-        
+        agent_response = result.get("agent_response", "")
+        logger.info(f"Agent response: {agent_response}")
         return {
-            "combinations": enriched_combinations,
-            "count": result.get("count", 0),
-            "input": result.get("input"),
+            "input": query,
+            "agent_response": agent_response,
             "status": "success"
         }
+
+        #post-process
+        
         
     except HTTPException:
         raise

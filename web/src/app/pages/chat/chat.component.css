@@ -384,6 +384,106 @@
   opacity: 0.6;
 }
 
+/* Markdown response styling */
+.markdown-response {
+  line-height: 1.6;
+  color: #333;
+  font-size: 1rem;
+}
+
+.markdown-response h2 {
+  margin: 16px 0 8px 0;
+  font-size: 1.3em;
+  font-weight: 600;
+  color: #e91e8c;
+}
+
+.markdown-response h3 {
+  margin: 12px 0 6px 0;
+  font-size: 1.1em;
+  font-weight: 600;
+  color: #333;
+}
+
+.markdown-response strong {
+  font-weight: 600;
+  color: #e91e8c;
+}
+
+.markdown-response em {
+  font-style: italic;
+  color: #666;
+}
+
+.markdown-response ul {
+  margin: 8px 0;
+  padding-left: 24px;
+}
+
+.markdown-response li {
+  margin: 4px 0;
+  list-style-type: disc;
+}
+
+.markdown-response br {
+  display: block;
+  content: "";
+  margin: 4px 0;
+}
+
+/* Markdown links with hover image tooltip */
+.markdown-link {
+  color: #e91e8c;
+  cursor: help;
+  text-decoration: underline;
+  font-weight: 500;
+  transition: color 0.2s;
+  display: inline;
+}
+
+.markdown-link:hover {
+  color: #c71a6f;
+  text-decoration: underline;
+}
+
+/* Image tooltip styling */
+.image-tooltip {
+  position: fixed;
+  background: white;
+  border: 3px solid #e91e8c;
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  z-index: 99999;
+  pointer-events: none;
+  max-width: 260px;
+  max-height: 350px;
+  animation: tooltipFadeIn 0.15s ease-out;
+  background: rgba(255, 255, 255, 0.98);
+  display: block !important;
+  visibility: visible !important;
+}
+
+.tooltip-image {
+  width: 100%;
+  height: auto;
+  max-height: 330px;
+  border-radius: 8px;
+  object-fit: contain;
+  display: block !important;
+}
+
+@keyframes tooltipFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9) translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
 /* Scrollbar styling */
 .messages-area::-webkit-scrollbar {
   width: 8px;
@@ -429,5 +529,14 @@
   .send-button {
     flex: 1;
     min-width: 100px;
+  }
+
+  .image-tooltip {
+    max-width: 200px;
+    max-height: 250px;
+  }
+
+  .tooltip-image {
+    max-height: 230px;
   }
 }
