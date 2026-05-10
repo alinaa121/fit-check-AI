@@ -68,26 +68,6 @@ class ClothingPipeline:
         with open(image_path, 'rb') as img_file:
             return img_file.read()
     
-    def get_mime_type(self, image_path: str) -> Optional[str]:
-        """
-        Determines the MIME type of the image. Only allows JPEG and PNG.
-
-        Args:
-            image_path (str): Path to the image file.
-
-        Returns:
-            Optional[str]: The MIME type if allowed, else None.
-        """
-        mime_type, _ = mimetypes.guess_type(image_path)
-        allowed_types = ["image/jpeg", "image/jpg", "image/png"]
-        if mime_type is None:
-            # Default to jpeg if unknown
-            mime_type = "image/jpeg"
-        if mime_type.lower() not in allowed_types:
-            logging.error(f"Unsupported image type: {mime_type}. Only JPEG and PNG are allowed.")
-            return None
-        logging.info(f"Determined MIME type: {mime_type} for image: {image_path}")
-        return mime_type
     
     def detect_mime_from_bytes(self, data: bytes) -> Optional[str]:
         """
@@ -117,23 +97,6 @@ class ClothingPipeline:
         else:
             logging.error(f"Unsupported or unrecognized image format. Only JPEG and PNG are allowed.")
             return None
-        
-    def process_image(self, image_path: str) -> Optional[Dict]:
-        """
-        Processes an image: loads it, checks MIME type, and identifies clothing.
-
-        Args:
-            image_path (str): Path to the image file.
-
-        Returns:
-            Optional[Dict]: Dictionary with all clothing metadata if successful, else None.
-        """
-        image_bytes = self.load_image(image_path)
-        mime_type = self.get_mime_type(image_path)
-        if mime_type is None:
-            return None
-        result = self.identify_clothing(image_bytes, mime_type)
-        return result
     
     def identify_and_upload(self, image_bytes: bytes, mime_type: Optional[str] = None, s3_key: Optional[str] = None, vector_db = None) -> Optional[Dict]:
         """
@@ -220,6 +183,55 @@ class ClothingPipeline:
             })
             return result_copy
     
+    def extract_filters_from_query(self, query: str) -> Optional[Dict]:
+        """
+        Extracts structured filters from a natural language query using Gemini.
+        Returns a dictionary with filter keys and list values ready for vdb.search().
+
+        Args:
+            query (str): Natural language query (e.g., "show me blue summer shirts")
+
+        Returns:
+            Optional[Dict]: Dictionary with filter arrays if successful, else None.
+            Example: {
+                "primary_category": ["Top"],
+                "primary_color": ["Blue"],
+                "season": ["Summer"]
+            }
+        """
+        logging.info(f"Extracting filters from query: '{query}'")
+        
+        try:
+            tools = types.Tool(function_declarations=[extract_vdb_filters_function])
+            response = self.gemini_client.call_gemini(
+                content_parts = [
+                    types.Part(text=extract_vdb_filters_prompt),
+                    types.Part(text=f"\n\nUser Query: {query}")
+                ],
+                model=extract_vdb_filters_model, 
+                config = types.GenerateContentConfig(
+                    tools=[tools],
+                    tool_config=types.ToolConfig(
+                        function_calling_config=types.FunctionCallingConfig(
+                            mode='ANY'
+                        )
+                    )
+                )
+            )
+        
+            if response and response.candidates[0].content.parts[0].function_call:
+                function_call = response.candidates[0].content.parts[0].function_call
+                filters = dict(function_call.args)
+                logging.info(f"Extracted filters: {filters}")
+                return filters if filters else {}
+            else:
+                logging.warning("No function call in response, returning empty filters")
+                return {}
+                
+        except Exception as e:
+            logging.error(f"Error extracting filters from query: {e}")
+            return None
+        
     def rank_and_filter_results(self, query: str, items: list) -> Optional[Dict]:
         """
         Ranks and filters clothing items by relevance to user query using AI.

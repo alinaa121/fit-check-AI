@@ -67,15 +67,11 @@ export class WardrobeService {
   }
 
   recommendItems(query: string): Observable<RecommendationResponse> {
-    return this.http.get<any>(`${this.apiUrl}/wardrobe/recommend?query=${query}`).pipe(
-      // Transform img_path to full image URLs
+    return this.http.get<any>(`${this.apiUrl}/wardrobe/search?query=${query}`).pipe(
+      // Transform full URLs to match expected response format
       map((response: any) => ({
         caption: response.caption,
-        items: (response.items || []).map((imgPath: string) => 
-          imgPath.startsWith('http') 
-            ? imgPath 
-            : `${this.apiUrl}/wardrobe/image/${imgPath}`
-        )
+        items: response.items || []  // Already full URLs from /search endpoint
       }))
     );
   }

@@ -13,9 +13,10 @@ from typing import Any, Dict
 
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.prebuilt import create_react_agent
+from vectordb import WardrobeVectorDB
 from dotenv import load_dotenv
 
-from tools import *
+from .tools import *
 from config import agent_system_prompt, agent_model, agent_temperature, agent_top_p
 
 # Configure logging
@@ -53,7 +54,6 @@ def process_agent_response(response: str) -> str:
     Returns:
         Response with item references converted to image URL markdown links
     """
-    from vectordb import WardrobeVectorDB
     
     vdb = WardrobeVectorDB()
     

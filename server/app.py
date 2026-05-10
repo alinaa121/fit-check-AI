@@ -9,7 +9,7 @@ import uuid
 from vectordb import WardrobeVectorDB
 from s3_utils import *
 from clothing_pipeline import ClothingPipeline
-from agent import run_agent
+from agent import *
 
 # Configure logging
 logging.basicConfig(
@@ -28,7 +28,7 @@ app = FastAPI(
 # Add CORS middleware to allow frontend access
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify your frontend domain
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -178,7 +178,7 @@ async def search_wardrobe(query: str):
         logger.info(f"Searching wardrobe for query: '{query}'")
         
         # Step 1: Extract structured filters from natural language query
-        filters = vdb.extract_filters_from_query(query)
+        filters = pipeline.extract_filters_from_query(query)
         logger.info(f"Extracted filters: {filters}")
         
         # Step 2: Count items matching filters
@@ -480,76 +480,6 @@ async def update_item(item_id: str, request: UpdateItemRequest):
             status_code=500,
             detail=f"Update operation failed: {str(e)}"
         )
-
-
-@app.get("/wardrobe/recommend", response_model=Dict[str, Any])
-async def recommend_catalogue_items(query: str):
-    """
-    Recommend clothing items from the catalogue based on a query.
-    
-    This endpoint uses AI to:
-    1. Extract filters from the natural language query
-    2. Search the wardrobe based on those filters
-    3. Rank results by relevance
-    4. Return the top recommendations with image URLs
-    
-    Args:
-        query (str): Natural language query for recommendations (e.g., "cute airport tops")
-        
-    Returns:
-        Dict with:
-            - caption: AI-generated description of the recommendations
-            - items: List of image URLs for the recommended items
-    """
-    try:
-        logger.info(f"Getting recommendations for query: '{query}'")
-        
-        # Extract filters from query
-        filters = vdb.extract_filters_from_query(query)
-        logger.info(f"Extracted Filters: {filters}")
-        
-        # Count items matching filters
-        count = vdb.count_items(filters)
-        logger.info(f"Found {count} items matching filters")
-        
-        # Search with filters if found items, otherwise search all
-        items = []
-        if count > 1:
-            items = vdb.search(query, 10, filters)
-            items = [{"id": item['id'], "description": item['raw_caption']} for item in items]
-        else:
-            items = vdb.search(query, 10)
-            items = [{"id": item['id'], "description": item['raw_caption']} for item in items]
-        
-        logger.info(f"Prepared {len(items)} items for ranking")
-        
-        # Rank and filter results
-        ranked = pipeline.rank_and_filter_results(query, items)
-        
-        if ranked is None:
-            raise HTTPException(
-                status_code=500,
-                detail="Failed to rank recommendations"
-            )
-        
-        # Get full metadata for each ranked item ID
-        ranked_ids = ranked.get('ranked_item_ids', [])
-        caption = ranked.get('caption', 'Here are our recommendations.')
-        
-        # Fetch full item details from vector DB
-        items_with_metadata = vdb.search_by_points(ranked_ids)
-        logger.info(f"Retrieved full metadata for {len(items_with_metadata)} recommendations")
-        
-        return {
-            "caption": caption,
-            "items": [item.get('img_path', '') for item in items_with_metadata]
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error during recommendations: {e}")
-        raise HTTPException(status_code=500, detail=f"Recommendation failed: {str(e)}")
 
 
 @app.post("/wardrobe/agent", response_model=Dict[str, Any])

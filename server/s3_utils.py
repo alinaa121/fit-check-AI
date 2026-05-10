@@ -47,40 +47,6 @@ def get_s3_client(
     )
 
 
-def upload_file(
-    file_path: str,
-    bucket: Optional[str],
-    key: str,
-    extra_args: Optional[Dict[str, Any]] = None,
-    client: Optional[Any] = None,
-    **client_kwargs,
-) -> None:
-    client = client or get_s3_client(**client_kwargs)
-    bucket = bucket or os.getenv("BUCKET_NAME")
-    if not bucket:
-        raise ValueError("Bucket name not specified and BUCKET_NAME env var is not set")
-    try:
-        client.upload_file(file_path, bucket, key, ExtraArgs=extra_args or {})
-    except ClientError:
-        raise
-
-
-def download_file(
-    bucket: Optional[str],
-    key: str,
-    dest_path: str,
-    client: Optional[Any] = None,
-    **client_kwargs,
-) -> None:
-    client = client or get_s3_client(**client_kwargs)
-    bucket = bucket or os.getenv("BUCKET_NAME")
-    if not bucket:
-        raise ValueError("Bucket name not specified and BUCKET_NAME env var is not set")
-    try:
-        client.download_file(bucket, key, dest_path)
-    except ClientError:
-        raise
-
 
 def download_file_to_memory(
     bucket: Optional[str],

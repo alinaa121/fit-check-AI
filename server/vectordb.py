@@ -299,16 +299,6 @@ class WardrobeVectorDB:
             logger.error(f"Error fetching points {point_ids}: {e}")
             return []
 
-    def delete_by_image_path(self, img_path: str) -> bool:
-        """Delete a point by image path. Returns True on success."""
-        logger.warning(f"Deleting point with img_path '{img_path}'")
-        self.client.delete(
-            collection_name=self.collection,
-            points_selector={"filter": {"must": [{"key": "img_path", "match": {"value": img_path}}]}},
-        )
-        logger.info(f"Deleted point with img_path '{img_path}'")
-        return True
-
     def delete_by_point(self, point_id: str) -> bool:
         """Delete a point by ID. Returns True on success."""
         logger.warning(f"Deleting point {point_id}")
@@ -472,51 +462,3 @@ class WardrobeVectorDB:
             logger.error(f"Error counting items with filters: {e}")
             return 0
         
-    def extract_filters_from_query(self, query: str) -> Optional[Dict]:
-        """
-        Extracts structured filters from a natural language query using Gemini.
-        Returns a dictionary with filter keys and list values ready for vdb.search().
-
-        Args:
-            query (str): Natural language query (e.g., "show me blue summer shirts")
-
-        Returns:
-            Optional[Dict]: Dictionary with filter arrays if successful, else None.
-            Example: {
-                "primary_category": ["Top"],
-                "primary_color": ["Blue"],
-                "season": ["Summer"]
-            }
-        """
-        logger.info(f"Extracting filters from query: '{query}'")
-        
-        try:
-            tools = types.Tool(function_declarations=[extract_vdb_filters_function])
-            response = self.gemini_client.call_gemini(
-                content_parts = [
-                    types.Part(text=extract_vdb_filters_prompt),
-                    types.Part(text=f"\n\nUser Query: {query}")
-                ],
-                model=extract_vdb_filters_model,  # Reuse the same model
-                config = types.GenerateContentConfig(
-                    tools=[tools],
-                    tool_config=types.ToolConfig(
-                        function_calling_config=types.FunctionCallingConfig(
-                            mode='ANY'
-                        )
-                    )
-                )
-            )
-        
-            if response and response.candidates[0].content.parts[0].function_call:
-                function_call = response.candidates[0].content.parts[0].function_call
-                filters = dict(function_call.args)
-                logger.info(f"Extracted filters: {filters}")
-                return filters if filters else {}
-            else:
-                logger.warning("No function call in response, returning empty filters")
-                return {}
-                
-        except Exception as e:
-            logger.error(f"Error extracting filters from query: {e}")
-            return None

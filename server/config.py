@@ -1,7 +1,5 @@
 #clothing ingestion pipeline
 identify_clothing_model="gemini-3-flash-preview"
-
-#clothing ingestion pipeline
 identify_clothing_function = {
     "name": "identify_clothing",
     "description": "Extracts detailed fashion metadata from a clothing item image. Returns structured JSON with comprehensive attributes.",
@@ -100,10 +98,6 @@ You must return a single JSON object strictly adhering to the schema and Enums d
 
 Analyze the image carefully and return your structured metadata.
 """
-
-#vectordb
-COLLECTION_NAME = "wardrobe_all_mini_lm"
-EMBEDDING_MODEL="all-MiniLM-L6-v2"
 
 extract_vdb_filters_model = "gemini-3-flash-preview" 
 extract_vdb_filters_function = {
@@ -252,6 +246,10 @@ Rules:
 
 Caption must be warm, friendly, personalized (e.g., "Here are your blue jeans!", "Found these cozy sweaters for winter!", "Sorry, couldn't find anything matching that").
 """
+
+#vectordb
+COLLECTION_NAME = "wardrobe_all_mini_lm"
+EMBEDDING_MODEL="all-MiniLM-L6-v2"
 
 # Agent system prompt for wardrobe AI
 agent_system_prompt = """You are a friendly, encouraging personal fashion stylist and your best friend's style advisor rolled into one AI. Your vibe is warm, supportive, and genuinely excited about helping users create amazing outfits and feel confident about their wardrobe.
