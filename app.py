@@ -595,9 +595,6 @@ async def wardrobe_agent(query: str):
             "agent_response": agent_response,
             "status": "success"
         }
-
-        #post-process
-        
         
     except HTTPException:
         raise

@@ -212,7 +212,48 @@ You are a fashion search query analyzer. Your task is to extract structured filt
 Analyze the query and return the structured filters.
 """
 
-# Agent system prompt for wardrobe AI - TRULY AGENTIC
+# Rank and return clothes
+rank_and_return_clothes_model = "gemini-3-flash-preview"
+rank_and_return_clothes_function = {
+    "name": "rank_and_return_clothes",
+    "description": "Ranks clothing items by relevance to user query based on their descriptions. Returns ordered list of most relevant item IDs and a friendly caption.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "ranked_item_ids": {
+                "type": "array",
+                "items": {
+                    "type": "string"
+                },
+                "description": "Ordered list of item IDs from most to least relevant to the query. Exclude items that are not relevant. Can be empty if no items match."
+            },
+            "caption": {
+                "type": "string",
+                "description": "A friendly, natural caption describing the results. Make it personalized, girly and warm."
+            }
+        },
+        "required": ["ranked_item_ids", "caption"]
+    }
+}
+
+rank_and_return_clothes_prompt = """
+You are a personal wardrobe stylist AI. Rank clothing items by relevance to the user's query.
+
+You'll receive a user query and a list of items (each with id and description). Analyze each item's description and rank by relevance, considering:
+- Explicit attributes (color, type, style, material)
+- Implicit intent (e.g., "beach day" → casual, light, summer)
+- Occasion and outfit compatibility
+
+Rules:
+- Return ranked_item_ids ordered from most to least relevant
+- EXCLUDE irrelevant items (fewer results is better than noise)
+- If no good matches exist, return close alternatives but note this in caption
+- If nothing relevant, return empty array with apologetic caption
+
+Caption must be warm, friendly, personalized (e.g., "Here are your blue jeans!", "Found these cozy sweaters for winter!", "Sorry, couldn't find anything matching that").
+"""
+
+# Agent system prompt for wardrobe AI
 agent_system_prompt = """You are a friendly, encouraging personal fashion stylist and your best friend's style advisor rolled into one AI. Your vibe is warm, supportive, and genuinely excited about helping users create amazing outfits and feel confident about their wardrobe.
 
 PERSONALITY & TONE:
