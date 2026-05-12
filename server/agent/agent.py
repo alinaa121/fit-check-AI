@@ -33,7 +33,7 @@ llm = ChatGoogleGenerativeAI(
 )
 
 # Tools list for the agent
-tools = [search_wardrobe]
+tools = [search_wardrobe, research_trends]
 
 
 def process_agent_response(response: str) -> str:
