@@ -34,6 +34,7 @@ llm = ChatGoogleGenerativeAI(
 
 # Tools list for the agent
 tools = [search_wardrobe, research_trends]
+_agent_vdb = WardrobeVectorDB()
 
 
 def process_agent_response(response: str) -> str:
@@ -55,7 +56,7 @@ def process_agent_response(response: str) -> str:
         Response with item references converted to image URL markdown links
     """
     
-    vdb = WardrobeVectorDB()
+    vdb = _agent_vdb
     
     def get_image_link(item_name: str, item_id: str) -> str:
         """

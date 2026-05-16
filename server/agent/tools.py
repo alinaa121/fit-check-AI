@@ -15,12 +15,6 @@ from vectordb import WardrobeVectorDB
 from gemini import GeminiClient
 from google.genai import types
 from config import *
-
-# Google Calendar imports
-from google.oauth2.service_account import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
-from google.oauth2 import service_account
-from googleapiclient.discovery import build
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -30,9 +24,6 @@ logger = logging.getLogger(__name__)
 
 # Initialize VectorDB instance
 _vdb_instance: Optional[WardrobeVectorDB] = None
-
-
-CALENDAR_SCOPES = ['https://www.googleapis.com/auth/calendar.readonly']
 
 
 def get_vdb() -> WardrobeVectorDB:

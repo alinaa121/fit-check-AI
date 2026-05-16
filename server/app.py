@@ -1,7 +1,6 @@
-from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi import FastAPI, HTTPException, UploadFile, File, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 import logging
 import uuid
@@ -23,13 +22,6 @@ from config import (
     outfit_feedback_prompt
 )
 
-try:
-    from rembg import remove
-    REMBG_AVAILABLE = True
-except ImportError:
-    REMBG_AVAILABLE = False
-    logger = logging.getLogger(__name__)
-    logger.warning("rembg not installed. Background removal will not be available.")
 
 # Configure logging
 logging.basicConfig(
@@ -433,25 +425,12 @@ async def delete_item(item_id: str):
         )
 
 
-class UpdateItemRequest(BaseModel):
-    field_name: str
-    new_value: Any
-
-
-class OutfitFeedbackRequest(BaseModel):
-    """Request model for getting outfit feedback from LLM"""
-    item_ids: List[str]
-    context: Optional[str] = None
-
-
-class SaveOutfitRequest(BaseModel):
-    """Request model for saving an outfit"""
-    item_ids: List[str]
-    name: Optional[str] = None
-
-
 @app.patch("/wardrobe/item/{item_id}", response_model=Dict[str, Any])
-async def update_item(item_id: str, request: UpdateItemRequest):
+async def update_item(
+    item_id: str,
+    field_name: str = Body(...),
+    new_value: Any = Body(...)
+):
     """
     Update a specific field of a wardrobe item.
     
@@ -466,7 +445,7 @@ async def update_item(item_id: str, request: UpdateItemRequest):
         Dict with update status and updated item details
     """
     try:
-        logger.info(f"Updating item {item_id}: {request.field_name} = {request.new_value}")
+        logger.info(f"Updating item {item_id}: {field_name} = {new_value}")
         
         # Validate field name
         valid_fields = [
@@ -475,14 +454,14 @@ async def update_item(item_id: str, request: UpdateItemRequest):
             "occasion", "fit", "style_vibe"
         ]
         
-        if request.field_name not in valid_fields:
+        if field_name not in valid_fields:
             raise HTTPException(
                 status_code=400,
                 detail=f"Invalid field name. Valid fields: {', '.join(valid_fields)}"
             )
         
         # Perform the update
-        success = vdb.update_by_point(item_id, request.field_name, request.new_value)
+        success = vdb.update_by_point(item_id, field_name, new_value)
         
         if not success:
             raise HTTPException(
@@ -495,11 +474,11 @@ async def update_item(item_id: str, request: UpdateItemRequest):
         
         return {
             "status": "success",
-            "message": f"Field '{request.field_name}' updated successfully",
+            "message": f"Field '{field_name}' updated successfully",
             "id": item_id,
-            "field_updated": request.field_name,
-            "new_value": request.new_value,
-            "re_embedded": request.field_name == "raw_caption",
+            "field_updated": field_name,
+            "new_value": new_value,
+            "re_embedded": field_name == "raw_caption",
             "updated_payload": updated_item.get("payload", {}) if updated_item else {}
         }
         
@@ -514,7 +493,10 @@ async def update_item(item_id: str, request: UpdateItemRequest):
 
 
 @app.post("/wardrobe/outfit-feedback", response_model=Dict[str, Any])
-async def get_outfit_feedback(request: OutfitFeedbackRequest):
+async def get_outfit_feedback(
+    item_ids: List[str] = Body(...),
+    context: Optional[str] = Body(None)
+):
     """
     Generate LLM-based feedback on a user's outfit composition.
     
@@ -536,17 +518,17 @@ async def get_outfit_feedback(request: OutfitFeedbackRequest):
             - context_provided: Whether user provided context
     """
     try:
-        logger.info(f"Generating outfit feedback for {len(request.item_ids)} items")
+        logger.info(f"Generating outfit feedback for {len(item_ids)} items")
         
-        if not request.item_ids:
+        if not item_ids:
             raise HTTPException(
                 status_code=400,
                 detail="At least one item must be provided for feedback"
             )
         
         # Step 1: Retrieve full metadata for all items using VectorDB search_by_points
-        logger.info(f"Fetching metadata for items: {request.item_ids}")
-        outfit_items = vdb.search_by_points(request.item_ids)
+        logger.info(f"Fetching metadata for items: {item_ids}")
+        outfit_items = vdb.search_by_points(item_ids)
         
         if not outfit_items:
             raise HTTPException(
@@ -569,12 +551,12 @@ async def get_outfit_feedback(request: OutfitFeedbackRequest):
 {items_text}
 
 """
-        if request.context:
-            user_message += f"User context: {request.context}\n"
+        if context:
+            user_message += f"User context: {context}\n"
         
         user_message += "\nPlease provide feedback on this outfit."
         
-        logger.info(f"Prepared outfit message with {len(outfit_items)} items and context: {bool(request.context)}")
+        logger.info(f"Prepared outfit message with {len(outfit_items)} items and context: {bool(context)}")
         
         # Step 4: Call Gemini LLM with outfit feedback function
         gemini = GeminiClient()
@@ -635,7 +617,7 @@ async def get_outfit_feedback(request: OutfitFeedbackRequest):
         return {
             "feedback": feedback_text,
             "items_analyzed": len(outfit_items),
-            "context_provided": bool(request.context)
+            "context_provided": bool(context)
         }
         
     except HTTPException:
@@ -649,7 +631,10 @@ async def get_outfit_feedback(request: OutfitFeedbackRequest):
 
 
 @app.post("/wardrobe/outfit-save", response_model=Dict[str, Any])
-async def save_outfit(request: SaveOutfitRequest):
+async def save_outfit(
+    item_ids: List[str] = Body(...),
+    name: Optional[str] = Body(None)
+):
     """
     Save an outfit composition to S3.
     
@@ -672,9 +657,9 @@ async def save_outfit(request: SaveOutfitRequest):
             - saved_at: ISO timestamp of when outfit was saved
     """
     try:
-        logger.info(f"Saving outfit with {len(request.item_ids)} items")
+        logger.info(f"Saving outfit with {len(item_ids)} items")
         
-        if not request.item_ids:
+        if not item_ids:
             raise HTTPException(
                 status_code=400,
                 detail="At least one item must be provided to save an outfit"
@@ -687,10 +672,10 @@ async def save_outfit(request: SaveOutfitRequest):
         # Step 2: Create outfit data structure
         outfit_data = {
             "outfit_id": outfit_id,
-            "name": request.name or f"Outfit {saved_at.split('T')[0]}",
-            "item_ids": request.item_ids,
+            "name": name or f"Outfit {saved_at.split('T')[0]}",
+            "item_ids": item_ids,
             "saved_at": saved_at,
-            "items_count": len(request.item_ids)
+            "items_count": len(item_ids)
         }
         
         # Step 3: Convert to JSON
@@ -718,7 +703,7 @@ async def save_outfit(request: SaveOutfitRequest):
             "message": "Outfit saved successfully",
             "outfit_id": outfit_id,
             "s3_key": s3_key,
-            "items_count": len(request.item_ids),
+            "items_count": len(item_ids),
             "saved_at": saved_at,
             "name": outfit_data["name"]
         }

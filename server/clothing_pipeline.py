@@ -135,9 +135,9 @@ class ClothingPipeline:
             logging.error("Failed to identify clothing")
             return None
         
-        primary_category = result.get('primary_category', '').lower()
+        primary_category = result.get('primary_category', '')
         
-        # Check if it's valid clothing (not 'not-clothing')
+        # Check if it's valid clothing (not 'Not-Clothing')
         if primary_category in ['Not-Clothing', '']:
             logging.warning(f"Image is not clothing (category: {primary_category}). Skipping upload.")
             result_copy = result.copy()
