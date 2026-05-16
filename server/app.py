@@ -5,11 +5,31 @@ from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 import logging
 import uuid
+import io
+from PIL import Image
+from google.genai import types
+from datetime import datetime
+import json
 
 from vectordb import WardrobeVectorDB
 from s3_utils import *
 from clothing_pipeline import ClothingPipeline
 from agent import *
+from gemini import GeminiClient
+from config import (
+    API_BASE_URL,
+    outfit_feedback_model,
+    outfit_feedback_function,
+    outfit_feedback_prompt
+)
+
+try:
+    from rembg import remove
+    REMBG_AVAILABLE = True
+except ImportError:
+    REMBG_AVAILABLE = False
+    logger = logging.getLogger(__name__)
+    logger.warning("rembg not installed. Background removal will not be available.")
 
 # Configure logging
 logging.basicConfig(
@@ -118,11 +138,10 @@ async def get_all_items(
             payload = point.payload
             img_path = payload.get("img_path")
             
-            # Generate proxy URL instead of presigned S3 URL
-            # This bypasses S3 Block Public Access restrictions
+            # Generate proxy URLs using API_BASE_URL from config
             image_url = None
             if img_path:
-                image_url = f"http://localhost:8000/wardrobe/image/{img_path}"
+                image_url = f"{API_BASE_URL}/wardrobe/image/{img_path}"
             
             # Construct item response
             item = {
@@ -215,11 +234,11 @@ async def search_wardrobe(query: str):
         items_with_metadata = vdb.search_by_points(ranked_ids)
         logger.info(f"Retrieved full metadata for {len(items_with_metadata)} ranked items")
         
-        # Step 6: Construct response with image URLs
+        # Step 6: Construct response with image URLs using API_BASE_URL
         result_urls = []
         for item in items_with_metadata:
             img_path = item.get('img_path')
-            image_url = f"http://localhost:8000/wardrobe/image/{img_path}" if img_path else None
+            image_url = f"{API_BASE_URL}/wardrobe/image/{img_path}" if img_path else None
             
             result_urls.append(image_url)
         
@@ -419,6 +438,18 @@ class UpdateItemRequest(BaseModel):
     new_value: Any
 
 
+class OutfitFeedbackRequest(BaseModel):
+    """Request model for getting outfit feedback from LLM"""
+    item_ids: List[str]
+    context: Optional[str] = None
+
+
+class SaveOutfitRequest(BaseModel):
+    """Request model for saving an outfit"""
+    item_ids: List[str]
+    name: Optional[str] = None
+
+
 @app.patch("/wardrobe/item/{item_id}", response_model=Dict[str, Any])
 async def update_item(item_id: str, request: UpdateItemRequest):
     """
@@ -479,6 +510,396 @@ async def update_item(item_id: str, request: UpdateItemRequest):
         raise HTTPException(
             status_code=500,
             detail=f"Update operation failed: {str(e)}"
+        )
+
+
+@app.post("/wardrobe/outfit-feedback", response_model=Dict[str, Any])
+async def get_outfit_feedback(request: OutfitFeedbackRequest):
+    """
+    Generate LLM-based feedback on a user's outfit composition.
+    
+    This endpoint:
+    1. Retrieves full metadata for outfit items from VectorDB
+    2. Constructs a system prompt with item descriptions and user context
+    3. Calls Gemini LLM to generate personalized outfit feedback
+    4. Returns the feedback text
+    
+    Args:
+        request (OutfitFeedbackRequest):
+            - item_ids: List of clothing item IDs in the outfit
+            - context: Optional user-provided context (e.g., occasion, event)
+    
+    Returns:
+        Dict with:
+            - feedback: The LLM-generated feedback text
+            - items_analyzed: Number of items analyzed
+            - context_provided: Whether user provided context
+    """
+    try:
+        logger.info(f"Generating outfit feedback for {len(request.item_ids)} items")
+        
+        if not request.item_ids:
+            raise HTTPException(
+                status_code=400,
+                detail="At least one item must be provided for feedback"
+            )
+        
+        # Step 1: Retrieve full metadata for all items using VectorDB search_by_points
+        logger.info(f"Fetching metadata for items: {request.item_ids}")
+        outfit_items = vdb.search_by_points(request.item_ids)
+        
+        if not outfit_items:
+            raise HTTPException(
+                status_code=404,
+                detail="Could not find metadata for the provided item IDs"
+            )
+        
+        logger.info(f"Retrieved metadata for {len(outfit_items)} items")
+        
+        # Step 2: Construct item descriptions for the prompt
+        item_descriptions = []
+        for item in outfit_items:
+            description = f"- {item.get('primary_category', 'Item')}: {item.get('raw_caption', 'No description')} (Color: {item.get('primary_color', 'Unknown')}, Pattern: {item.get('pattern', 'Unknown')})"
+            item_descriptions.append(description)
+        
+        items_text = "\n".join(item_descriptions)
+        
+        # Step 3: Build the user message with outfit details and context
+        user_message = f"""Here is the outfit composition:
+{items_text}
+
+"""
+        if request.context:
+            user_message += f"User context: {request.context}\n"
+        
+        user_message += "\nPlease provide feedback on this outfit."
+        
+        logger.info(f"Prepared outfit message with {len(outfit_items)} items and context: {bool(request.context)}")
+        
+        # Step 4: Call Gemini LLM with outfit feedback function
+        gemini = GeminiClient()
+        
+        # Use function directly from config (matching pattern from clothing_pipeline.py)
+        tools = types.Tool(function_declarations=[outfit_feedback_function])
+        
+        config = types.GenerateContentConfig(
+            tools=[tools],
+            tool_config=types.ToolConfig(
+                function_calling_config=types.FunctionCallingConfig(
+                    mode='ANY'
+                )
+            ),
+            system_instruction=outfit_feedback_prompt
+        )
+        
+        # Prepare content parts for Gemini
+        content_parts = [types.Part(text=user_message)]
+        
+        # Call Gemini
+        logger.info("Calling Gemini LLM for outfit feedback")
+        response = gemini.call_gemini(
+            content_parts=content_parts,
+            model=outfit_feedback_model,
+            config=config
+        )
+        
+        if response is None:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to generate feedback from LLM"
+            )
+        
+        # Step 5: Extract feedback from response (matching pattern from clothing_pipeline.py)
+        feedback_text = None
+        
+        try:
+            # Access function call from response structure
+            if response and response.candidates[0].content.parts[0].function_call:
+                function_call = response.candidates[0].content.parts[0].function_call
+                logger.info(f"Function call response: {function_call.args}")
+                feedback_text = function_call.args.get('feedback') or str(function_call.args)
+            else:
+                logger.warning("No function call in response or unexpected response format")
+        except (AttributeError, IndexError, KeyError) as e:
+            logger.warning(f"Could not extract from structured format, trying text fallback: {e}")
+            # Try text fallback
+            if hasattr(response, 'text'):
+                feedback_text = response.text
+        
+        if not feedback_text:
+            logger.warning("Could not extract feedback from LLM response")
+            feedback_text = "Unable to generate feedback at this time. Please try again."
+        
+        logger.info(f"Successfully generated outfit feedback ({len(str(feedback_text))} characters)")
+        
+        return {
+            "feedback": feedback_text,
+            "items_analyzed": len(outfit_items),
+            "context_provided": bool(request.context)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating outfit feedback: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate outfit feedback: {str(e)}"
+        )
+
+
+@app.post("/wardrobe/outfit-save", response_model=Dict[str, Any])
+async def save_outfit(request: SaveOutfitRequest):
+    """
+    Save an outfit composition to S3.
+    
+    This endpoint:
+    1. Validates that at least one item is provided
+    2. Creates a JSON file with outfit data (item IDs, date, optional name)
+    3. Uploads to S3 in the outfits/ folder with a unique ID
+    4. Returns the outfit ID and details
+    
+    Args:
+        request (SaveOutfitRequest):
+            - item_ids: List of clothing item IDs in the outfit
+            - name: Optional outfit name
+    
+    Returns:
+        Dict with:
+            - outfit_id: Unique identifier for the saved outfit
+            - s3_key: S3 path where outfit was saved
+            - items_count: Number of items in outfit
+            - saved_at: ISO timestamp of when outfit was saved
+    """
+    try:
+        logger.info(f"Saving outfit with {len(request.item_ids)} items")
+        
+        if not request.item_ids:
+            raise HTTPException(
+                status_code=400,
+                detail="At least one item must be provided to save an outfit"
+            )
+        
+        # Step 1: Generate outfit ID and timestamp
+        outfit_id = str(uuid.uuid4())
+        saved_at = datetime.utcnow().isoformat() + "Z"
+        
+        # Step 2: Create outfit data structure
+        outfit_data = {
+            "outfit_id": outfit_id,
+            "name": request.name or f"Outfit {saved_at.split('T')[0]}",
+            "item_ids": request.item_ids,
+            "saved_at": saved_at,
+            "items_count": len(request.item_ids)
+        }
+        
+        # Step 3: Convert to JSON
+        outfit_json = json.dumps(outfit_data, indent=2)
+        outfit_bytes = outfit_json.encode('utf-8')
+        
+        # Step 4: Generate S3 key with outfit ID
+        s3_key = f"outfits/{outfit_id}.json"
+        
+        logger.info(f"Uploading outfit to S3: {s3_key}")
+        
+        # Step 5: Upload to S3 using upload_fileobj
+        outfit_file = io.BytesIO(outfit_bytes)
+        upload_fileobj(
+            outfit_file,
+            bucket=None,  # Uses BUCKET_NAME from env
+            key=s3_key,
+            content_type="application/json"
+        )
+        
+        logger.info(f"Successfully saved outfit {outfit_id} to S3")
+        
+        return {
+            "status": "success",
+            "message": "Outfit saved successfully",
+            "outfit_id": outfit_id,
+            "s3_key": s3_key,
+            "items_count": len(request.item_ids),
+            "saved_at": saved_at,
+            "name": outfit_data["name"]
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error saving outfit: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to save outfit: {str(e)}"
+        )
+
+
+@app.get("/wardrobe/outfits", response_model=Dict[str, Any])
+async def get_outfits():
+    """
+    Retrieve all saved outfits from S3.
+    
+    This endpoint:
+    1. Lists all JSON files in the outfits/ folder
+    2. For each outfit, reads the JSON and extracts item_ids and name
+    3. Retrieves full item metadata from VectorDB using the item_ids
+    4. Generates image URLs for each item
+    5. Returns all outfits with their names and items
+    
+    Returns:
+        Dict with:
+            - outfits: List of saved outfits, each containing:
+                - outfit_id: Unique identifier
+                - name: Outfit name
+                - items: List of items with id, image_url, and metadata
+                - saved_at: When the outfit was saved
+                - items_count: Number of items in outfit
+            - count: Total number of outfits
+            - status: "success"
+    """
+    try:
+        logger.info("Fetching all saved outfits from S3")
+        
+        # Step 1: List all outfit JSON files in outfits/ folder
+        outfit_files = list_objects(bucket=None, prefix="outfits/")
+        logger.info(f"Found {len(outfit_files)} outfit files")
+        
+        if not outfit_files:
+            logger.info("No saved outfits found")
+            return {
+                "outfits": [],
+                "count": 0,
+                "status": "success"
+            }
+        
+        outfits = []
+        
+        # Step 2: Process each outfit file
+        for outfit_file in outfit_files:
+            try:
+                # Read the JSON file from S3
+                outfit_bytes = download_file_to_memory(bucket=None, key=outfit_file)
+                outfit_json = json.loads(outfit_bytes.decode('utf-8'))
+                
+                logger.info(f"Processing outfit: {outfit_json.get('outfit_id')}")
+                
+                # Step 3: Extract item_ids and name
+                item_ids = outfit_json.get("item_ids", [])
+                outfit_name = outfit_json.get("name", "Unnamed Outfit")
+                outfit_id = outfit_json.get("outfit_id")
+                saved_at = outfit_json.get("saved_at")
+                
+                if not item_ids:
+                    logger.warning(f"Outfit {outfit_id} has no items, skipping")
+                    continue
+                
+                # Step 4: Retrieve full metadata for all items
+                outfit_items = vdb.search_by_points(item_ids)
+                
+                if not outfit_items:
+                    logger.warning(f"Could not retrieve metadata for outfit {outfit_id}")
+                    continue
+                
+                # Step 5: Construct items with image URLs
+                items_with_urls = []
+                for item in outfit_items:
+                    img_path = item.get("img_path")
+                    image_url = f"{API_BASE_URL}/wardrobe/image/{img_path}" if img_path else None
+                    
+                    items_with_urls.append({
+                        "id": item.get("id"),
+                        "image_url": image_url,
+                        "raw_caption": item.get("raw_caption"),
+                        "primary_category": item.get("primary_category"),
+                        "primary_color": item.get("primary_color"),
+                        "pattern": item.get("pattern"),
+                    })
+                
+                # Add complete outfit to results
+                outfits.append({
+                    "outfit_id": outfit_id,
+                    "name": outfit_name,
+                    "items": items_with_urls,
+                    "saved_at": saved_at,
+                    "items_count": len(items_with_urls)
+                })
+                
+                logger.info(f"Successfully processed outfit {outfit_id} with {len(items_with_urls)} items")
+                
+            except Exception as e:
+                logger.error(f"Error processing outfit file {outfit_file}: {e}")
+                continue
+        
+        logger.info(f"Successfully retrieved {len(outfits)} outfits")
+        
+        return {
+            "outfits": outfits,
+            "count": len(outfits),
+            "status": "success"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error retrieving outfits: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to retrieve outfits: {str(e)}"
+        )
+
+
+@app.delete("/wardrobe/outfit-delete/{outfit_id}", response_model=Dict[str, Any])
+async def delete_outfit(outfit_id: str):
+    """
+    Delete a saved outfit from S3.
+    
+    This endpoint:
+    1. Validates the outfit_id
+    2. Deletes the outfit JSON file from S3 outfits/ folder
+    3. Returns deletion status
+    
+    Args:
+        outfit_id: The unique identifier of the outfit to delete
+        
+    Returns:
+        Dict with:
+            - status: "success"
+            - message: Deletion confirmation
+            - outfit_id: The deleted outfit ID
+    """
+    try:
+        logger.info(f"Deleting outfit {outfit_id}")
+        
+        if not outfit_id:
+            raise HTTPException(
+                status_code=400,
+                detail="Outfit ID is required"
+            )
+        
+        # Generate S3 key
+        s3_key = f"outfits/{outfit_id}.json"
+        
+        # Delete from S3
+        try:
+            delete_object(bucket=None, key=s3_key)
+            logger.info(f"Successfully deleted outfit {outfit_id} from S3")
+        except Exception as e:
+            logger.error(f"Failed to delete outfit {outfit_id} from S3: {e}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to delete outfit: {str(e)}"
+            )
+        
+        return {
+            "status": "success",
+            "message": f"Outfit {outfit_id} deleted successfully",
+            "outfit_id": outfit_id
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting outfit: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete outfit: {str(e)}"
         )
 
 

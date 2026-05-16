@@ -1,0 +1,224 @@
+<div class="outfit-dump-container">
+  <h1>Visualise Combinations</h1>
+  
+  <div class="outfit-dump-content">
+    <!-- Left side: Clothes list -->
+    <div class="clothes-section">
+      <h2>Your Clothes</h2>
+      
+      <!-- Category filter -->
+      <div class="category-filter">
+        <button 
+          *ngFor="let category of categories"
+          [class.active]="selectedCategory === category"
+          (click)="onCategoryChange(category)"
+          class="category-btn"
+        >
+          {{ category }}
+        </button>
+      </div>
+      
+      <div *ngIf="loading" class="loading">
+        Loading your wardrobe...
+      </div>
+      
+      <div *ngIf="error" class="error">
+        {{ error }}
+        <button (click)="loadClothes()" class="retry-button">Retry</button>
+      </div>
+      
+      <div *ngIf="!loading && !error" class="clothes-grid">
+        <div 
+          *ngFor="let item of clothes" 
+          class="clothing-item"
+          draggable="true"
+          (dragstart)="onDragStart($event, item)"
+          [title]="item.raw_caption"
+        >
+          <img 
+            [src]="item.image_url" 
+            [alt]="item.raw_caption"
+            class="clothing-image"
+          />
+        </div>
+      </div>
+    </div>
+
+    <!-- Right side: Canvas for outfit -->
+    <div class="canvas-section">
+      <div class="canvas-header">
+        <h2>Your Outfit</h2>
+        <div class="canvas-actions" *ngIf="outfitItems.length > 0">
+          <button (click)="clearOutfit()" class="clear-btn" title="Clear entire outfit">
+            🗑️ Clear
+          </button>
+        </div>
+      </div>
+
+      <div 
+        class="canvas"
+        (dragover)="onDragOver($event)"
+        (drop)="onDrop($event)"
+        (dragleave)="onDragLeave($event)"
+      >
+        <div *ngIf="outfitItems.length === 0" class="empty-state">
+          <p>Drag clothes here to create an outfit</p>
+        </div>
+        
+        <div *ngIf="outfitItems.length > 0" class="outfit-canvas">
+          <div *ngFor="let item of outfitItems; let i = index" 
+            class="outfit-item-positioned"
+            [ngStyle]="getOutfitItemStyle(i)"
+            draggable="true"
+            (dragstart)="onDragStart($event, item, i)"
+            (dragend)="onOutfitItemDragEnd($event, i)"
+          >
+            <div class="item-container" [ngStyle]="getOutfitItemSizeStyle(i)">
+              <img 
+                [src]="item.image_url" 
+                [alt]="item.raw_caption"
+                class="outfit-image"
+              />
+              <button 
+                class="remove-btn"
+                (click)="removeFromOutfit(i)"
+                title="Remove from outfit"
+              >
+                ✕
+              </button>
+              <div 
+                class="resize-handle"
+                (mousedown)="onResizeStart($event, i)"
+                title="Drag to resize"
+              ></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="feedback-section" *ngIf="outfitItems.length > 0">
+        <input 
+          type="text"
+          class="feedback-input"
+          [(ngModel)]="outfitName"
+          placeholder="Give your outfit a name (optional)"
+        />
+        <button 
+          (click)="saveOutfit()"
+          class="feedback-btn"
+          [disabled]="savingOutfit || savedRecently"
+        >
+          {{ savingOutfit ? 'Saving...' : savedRecently ? '✓ Saved!' : 'Save Outfit' }}
+        </button>
+      </div>
+
+      <div *ngIf="saveSuccess || saveError" class="save-status">
+        <div *ngIf="saveSuccess" class="save-success">
+          {{ saveSuccess }}
+        </div>
+        <div *ngIf="saveError" class="save-error">
+          {{ saveError }}
+        </div>
+      </div>
+
+      <div class="feedback-section" *ngIf="outfitItems.length > 0">
+        <input 
+          type="text"
+          class="feedback-input"
+          [(ngModel)]="feedbackContext"
+          placeholder="Add context about your outfit (e.g., going to dinner, outdoor event...)"
+        />
+        <button 
+          (click)="getFeedback()" 
+          class="feedback-btn" 
+          title="Get feedback on your outfit"
+          [disabled]="feedbackLoading"
+        >
+          {{ feedbackLoading ? 'Loading...' : 'Get Feedback' }}
+        </button>
+      </div>
+
+      <div class="feedback-response" *ngIf="feedbackText || feedbackError || feedbackLoading">
+        <div class="feedback-card">
+          <h3>✨ AI Styling Feedback</h3>
+          
+          <div *ngIf="feedbackLoading" class="feedback-loading">
+            <div class="spinner"></div>
+            <p>Analyzing your outfit...</p>
+          </div>
+          
+          <div *ngIf="feedbackError && !feedbackLoading" class="feedback-error">
+            <p>{{ feedbackError }}</p>
+          </div>
+          
+          <div *ngIf="feedbackText && !feedbackLoading" class="feedback-content">
+            <p>{{ feedbackText }}</p>
+            <button (click)="feedbackText = null" class="close-feedback-btn">×</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right side bottom: Previous outfits -->
+    <div class="previous-outfits-section">
+      <h2>Saved Outfits</h2>
+      
+      <div *ngIf="outfitsLoading" class="outfits-loading">
+        Loading your outfits...
+      </div>
+      
+      <div *ngIf="outfitsError" class="outfits-error">
+        {{ outfitsError }}
+      </div>
+      
+      <div *ngIf="!outfitsLoading && !outfitsError && previousOutfits.length === 0" class="no-outfits">
+        No saved outfits yet. Create and save one!
+      </div>
+      
+      <div *ngIf="!outfitsLoading && !outfitsError && previousOutfits.length > 0" class="outfits-grid">
+        <div *ngFor="let outfit of previousOutfits" 
+          class="outfit-card"
+          [class.expanded]="expandedOutfitId === outfit.outfit_id"
+          (click)="toggleOutfitExpanded(outfit.outfit_id)"
+        >
+          <button 
+            class="outfit-delete-btn"
+            title="Delete outfit"
+            (click)="deleteOutfit(outfit.outfit_id, $event)"
+          >
+            🗑️
+          </button>
+          <div *ngIf="expandedOutfitId !== outfit.outfit_id" class="outfit-preview">
+            <h3 class="outfit-name">{{ outfit.name }}</h3>
+            <div class="outfit-images">
+              <div *ngFor="let item of outfit.items" class="outfit-item-image">
+                <img 
+                  [src]="item.image_url" 
+                  [alt]="item.raw_caption"
+                  class="outfit-image-thumbnail"
+                />
+              </div>
+            </div>
+            <div class="outfit-meta">
+              <span class="item-count">{{ outfit.items_count }} items</span>
+              <span class="saved-date">{{ outfit.saved_at | date:'short' }}</span>
+            </div>
+          </div>
+          <div *ngIf="expandedOutfitId === outfit.outfit_id" class="outfit-expanded-details">
+            <h3 class="outfit-name" style="margin-bottom: 16px;">{{ outfit.name }}</h3>
+            <div class="outfit-details-content">
+              <div *ngFor="let item of outfit.items" class="item-detail">
+                <img [src]="item.image_url" [alt]="item.raw_caption" />
+                <div class="item-info">
+                  <p class="item-category">{{ item.primary_category }}</p>
+                  <p class="item-description">{{ item.raw_caption }}</p>
+                  <p class="item-color">{{ item.primary_color }}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

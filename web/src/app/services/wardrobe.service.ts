@@ -6,6 +6,7 @@ import { map } from 'rxjs/operators';
 export interface ClothingItem {
   id: string;
   image_url: string;
+  image_url_no_bg: string;
   img_path: string;
   raw_caption: string;
   primary_category: string;
@@ -74,5 +75,27 @@ export class WardrobeService {
         items: response.items || []  // Already full URLs from /search endpoint
       }))
     );
+  }
+
+  getOutfitFeedback(itemIds: string[], context?: string): Observable<any> {
+    return this.http.post<any>(`${this.apiUrl}/wardrobe/outfit-feedback`, {
+      item_ids: itemIds,
+      context: context || null
+    });
+  }
+
+  saveOutfit(itemIds: string[], outfitName?: string): Observable<any> {
+    return this.http.post<any>(`${this.apiUrl}/wardrobe/outfit-save`, {
+      item_ids: itemIds,
+      name: outfitName || null
+    });
+  }
+
+  getOutfits(): Observable<any> {
+    return this.http.get<any>(`${this.apiUrl}/wardrobe/outfits`);
+  }
+
+  deleteOutfit(outfitId: string): Observable<any> {
+    return this.http.delete<any>(`${this.apiUrl}/wardrobe/outfit-delete/${outfitId}`);
   }
 }

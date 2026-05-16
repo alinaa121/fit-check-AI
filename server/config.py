@@ -1,4 +1,14 @@
 #clothing ingestion pipeline
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# API Base URL - used to construct image URLs in API responses
+# Development: http://localhost:8000 (default)
+# Production: Set via environment variable API_BASE_URL
+API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
+
 identify_clothing_model="gemini-3-flash-preview"
 identify_clothing_function = {
     "name": "identify_clothing",
@@ -275,8 +285,7 @@ Examples: **blue jeans (a1b2c3d4-e5f6-4789-0abc-def123456789)**, **oversized bla
 
 AVAILABLE TOOLS:
 1. search_wardrobe: Find items matching user requirements (colors, styles, categories, etc.)
-2. generate_outfit_combinations: Create outfit pairings from a list of items
-3. get_wardrobe_recommendations: Provide styling advice, gap analysis, or shopping suggestions
+2. research_trends: Get current fashion trends for specific categories or styles
 
 CRITICAL: ALWAYS REFERENCE ITEMS BY THEIR IDs
 - When you mention any clothing item from the wardrobe, reference it by ID like this: "the blue shirt (id1)" or "your black jeans (id2)"
@@ -285,14 +294,8 @@ CRITICAL: ALWAYS REFERENCE ITEMS BY THEIR IDs
 - If items are suggestions for shopping (not in wardrobe), mention them without IDs
 
 YOUR DECISION LOGIC - BE TRULY AGENTIC:
-Analyze the user's request and intelligently decide which tool(s) to call:
-
-- "Show me blue shirts" → search_wardrobe only
-- "Create outfit with my red top" → search_wardrobe, then generate_outfit_combinations
-- "What should I add to my wardrobe?" → get_wardrobe_recommendations with analysis_type="gaps"
-- "Style ideas for summer" → search_wardrobe, then get_wardrobe_recommendations
-- "What goes with..." → search_wardrobe, then get_wardrobe_recommendations with analysis_type="pairing"
-- "Help me organize/understand my wardrobe" → get_wardrobe_recommendations with analysis_type="suggestions"
+Analyze the user's request and intelligently decide which tool(s) to call. 
+If wardrobe does not have appropriate items, suggest shopping for new pieces.
 
 GUIDELINES:
 - You decide which tools to call based on the request - NOT a fixed workflow
@@ -309,6 +312,49 @@ GUIDELINES:
 agent_model = "gemini-3-flash-preview"
 agent_temperature = 0.7
 agent_top_p = 0.9
+
+# Outfit Feedback from LLM
+outfit_feedback_model = "gemini-3-flash-preview"
+outfit_feedback_function = {
+    "name": "generate_outfit_feedback",
+    "description": "Generates personalized, constructive feedback on a user's outfit composition.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "feedback": {
+                "type": "string",
+                "description": "Detailed, friendly, and constructive outfit feedback with styling suggestions."
+            }
+        },
+        "required": ["feedback"]
+    }
+}
+
+outfit_feedback_prompt = """You are a warm, encouraging personal fashion stylist providing real-time feedback on an outfit composition. Your tone is like a best friend giving genuine style advice.
+
+OUTFIT ANALYSIS TASK:
+You will receive:
+1. A list of clothing items the user has composed in their outfit (with descriptions, colors, categories)
+2. The user's optional context about the occasion or purpose of the outfit
+
+FEEDBACK GUIDELINES:
+- Be encouraging and positive while offering constructive suggestions
+- Analyze how the pieces work together (color harmony, proportion balance, style cohesion)
+- Consider the occasion/context provided by the user
+- Suggest improvements if there are clashing colors, mismatched styles, or proportion issues
+- Point out what works well about the combination
+- Offer specific styling tips or alternatives if needed
+- Keep the tone conversational and friendly, like texting a friend
+- Be brief but insightful (3-5 sentences typically)
+- If the outfit seems incomplete (e.g., missing shoes or outerwear for the occasion), mention it naturally
+
+TONE:
+- Warm and supportive, never judgmental
+- Genuine and personalized
+- Use natural language, not robotic
+- Celebrate their choices while being honest about styling
+
+Return only the feedback text - no formatting required, just warm, genuine advice."""
 
 #s3
 key="images"
