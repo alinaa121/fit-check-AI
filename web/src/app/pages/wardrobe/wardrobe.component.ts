@@ -44,6 +44,7 @@ export class WardrobeComponent implements OnInit {
   seasonOptions = ['Spring', 'Summer', 'Fall', 'Winter', 'All-Season'];
   occasionOptions = ['Casual', 'Smart-Casual', 'Business-Formal', 'Athletic/Gym', 'Lounge', 'Night-Out', 'Formal/Black-Tie'];
   styleVibeOptions = ['Minimalist', 'Streetwear', 'Vintage/Retro', 'Preppy', 'Grunge', 'Techwear', 'Bohemian', 'Classic', 'Other'];
+  primaryCategoryOptions = ['Top', 'Bottom', 'Outerwear', 'Footwear', 'Accessory', 'Full-body'];
 
   constructor(private wardrobeService: WardrobeService) {}
 

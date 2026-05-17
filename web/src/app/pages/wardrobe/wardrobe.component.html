@@ -178,7 +178,20 @@
             <div class="editable-wrapper">
               <h2 class="detail-title">{{selectedItem.sub_category}}</h2>
             </div>
-            <span class="category-badge-large">{{selectedItem.primary_category}}</span>
+            <!-- Primary Category (editable) -->
+            <span class="category-badge-large"
+              *ngIf="!editMode || editingField !== 'primary_category'"
+              [class.editable]="editMode"
+              (click)="editMode ? startEditing('primary_category', selectedItem.primary_category) : null">
+              {{selectedItem.primary_category}}<span *ngIf="editMode"> ✏️</span>
+            </span>
+            <div class="inline-edit" *ngIf="editingField === 'primary_category'">
+              <select [(ngModel)]="editValue" class="edit-select-small" [disabled]="saving">
+                <option *ngFor="let option of primaryCategoryOptions" [value]="option">{{option}}</option>
+              </select>
+              <button class="save-btn-small" (click)="saveField()" [disabled]="saving">{{ saving ? '...' : '✓' }}</button>
+              <button class="cancel-btn-small" (click)="cancelEditing()" [disabled]="saving">✕</button>
+            </div>
           </div>
         </div>
         
