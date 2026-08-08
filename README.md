@@ -1,6 +1,6 @@
-# Wardrobe AI
+# Fit Check AI
 
-Wardrobe AI turns your physical closet into a searchable, intelligent wardrobe. Snap a photo of any clothing item and Gemini automatically tags it with category, color, material, occasion, and more. From there, search what you own in plain English, or chat with an AI agent that knows your wardrobe and current trends to help you put together outfits — no more staring at a full closet with nothing to wear.
+Fit Check AI turns your physical closet into a searchable, intelligent wardrobe. Snap a photo of any clothing item and Gemini automatically tags it with category, color, material, occasion, and more. From there, search what you own in plain English, or chat with an AI agent that knows your wardrobe and current trends to help you put together outfits — no more staring at a full closet with nothing to wear.
 
 ## Features
 
