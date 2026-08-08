@@ -48,11 +48,11 @@ export class ChatComponent implements OnInit {
 
   ngOnInit() {
     // Initialize with a welcome message
-    const welcomeMarkdown = `Hi! I'm your AI fashion stylist. How can I help you style today? Want outfit ideas, styling tips, or something else? 💕`;
+    const welcomeMarkdown = `Hi! I'm your AI fashion stylist. How can I help you style today? Want outfit ideas, styling tips, or something else?`;
 
     this.messages.push({
       type: 'agent',
-      query: 'Welcome to Wardrobe AI Chat',
+      query: 'Welcome to Fit Check AI Chat',
       input: '',
       response: {
         combinations: [],

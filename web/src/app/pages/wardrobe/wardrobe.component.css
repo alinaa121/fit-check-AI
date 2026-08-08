@@ -17,14 +17,18 @@
 .title {
   font-size: 2.5rem;
   font-weight: 700;
-  color: var(--primary);
-  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, var(--hot-pink) 0%, var(--accent) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: 0.01em;
   margin-bottom: 0.5rem;
 }
 
 .subtitle {
   color: var(--text-secondary);
   font-size: 1.125rem;
+  font-weight: 400;
 }
 
 /* Category Filter */
@@ -38,35 +42,35 @@
 }
 
 .filter-btn {
-  padding: 0.625rem 1.5rem;
+  padding: 0.7rem 1.5rem;
   background: white;
   border: 2px solid var(--border);
-  border-radius: 24px;
+  border-radius: 20px;
   color: var(--text-secondary);
   font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s ease;
-  font-family: 'Playfair Display', serif;
+  transition: all 0.25s ease;
+  font-family: 'Crimson Text', serif;
 }
 
 .filter-btn:hover {
-  border-color: var(--accent-light);
-  color: var(--accent);
+  border-color: var(--accent);
+  color: var(--primary);
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(233, 30, 140, 0.15);
+  box-shadow: 0 4px 12px rgba(216, 181, 196, 0.2);
 }
 
 .filter-btn.active {
   background: var(--accent-gradient);
   border-color: transparent;
   color: white;
-  box-shadow: 0 4px 12px rgba(233, 30, 140, 0.3);
+  box-shadow: 0 4px 15px rgba(216, 181, 196, 0.3);
 }
 
 .filter-btn.active:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(233, 30, 140, 0.4);
+  box-shadow: 0 6px 16px rgba(139, 115, 85, 0.25);
 }
 
 /* Search Section */
@@ -82,18 +86,19 @@
 
 .search-input {
   flex: 1;
-  padding: 0.875rem 1.5rem;
+  padding: 0.9rem 1.5rem;
   border: 2px solid var(--border);
-  border-radius: 12px;
+  border-radius: 10px;
   font-size: 1rem;
-  font-family: inherit;
-  transition: all 0.3s ease;
+  font-family: 'Lora', inherit;
+  transition: all 0.25s ease;
+  background: white;
 }
 
 .search-input:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(233, 30, 140, 0.1);
+  box-shadow: 0 0 0 3px rgba(255, 105, 180, 0.15);
 }
 
 .search-input::placeholder {

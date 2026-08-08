@@ -4,49 +4,63 @@
   box-sizing: border-box;
 }
 
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600;700&family=Lora:wght@400;500;600;700&family=Crimson+Text:wght@400;600;700&display=swap');
+
 :root {
-  --primary: #2d2d2d;
-  --secondary: #fff0f6;
-  --accent: #e91e8c;
-  --accent-light: #ff69b4;
-  --accent-gradient: linear-gradient(135deg, #e91e8c 0%, #ff69b4 100%);
-  --text-primary: #2d2d2d;
-  --text-secondary: #9d5b7a;
-  --border: #ffd1e3;
-  --hover: #ffe5f1;
-  --barbie-pink: #e91e8c;
+  --primary: #e91e63;
+  --secondary: #fff0f5;
+  --accent: #ff69b4;
+  --accent-light: #ffb3d9;
+  --accent-gradient: linear-gradient(135deg, #ff1493 0%, #ff69b4 100%);
+  --text-primary: #4a2c3e;
+  --text-secondary: #8b5a7a;
+  --border: #ffd6e8;
+  --hover: #ffe5f0;
+  --sage: #b5c4b3;
+  --cream: #fffef9;
+  --blush: #ffc0db;
+  --lavender: #e8d9e8;
+  --soft-pink: #ffb3d9;
   --hot-pink: #ff1493;
-  --rose: #ff69b4;
+  --coral: #ff6b9d;
 }
 
 body {
-  font-family: 'Lato', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: 'Lora', 'Georgia', serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: linear-gradient(to bottom, #ffffff 0%, #fff5fa 100%);
+  background: linear-gradient(135deg, #ffffff 0%, #fff5f9 50%, #ffe5f0 100%);
   min-height: 100vh;
   color: var(--text-primary);
-  line-height: 1.6;
+  line-height: 1.8;
+  position: relative;
+  overflow-x: hidden;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); opacity: 0.3; }
+  50% { transform: translateY(-15px); opacity: 0.6; }
 }
 
 h1, h2, h3, h4, h5, h6 {
-  font-family: 'Playfair Display', serif;
+  font-family: 'Cormorant Garamond', 'Georgia', serif;
   font-weight: 600;
   letter-spacing: 0.02em;
+  color: var(--primary);
 }
 
 button, .logo {
-  font-family: 'Playfair Display', serif;
+  font-family: 'Crimson Text', serif;
 }
 
-/* Smooth transitions */
+/* Smooth, gentle transitions */
 * {
-  transition: all 0.2s ease;
+  transition: all 0.25s ease;
 }
 
-/* Scrollbar styling */
+/* Soft girl scrollbar styling */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 10px;
 }
 
 ::-webkit-scrollbar-track {
@@ -54,20 +68,18 @@ button, .logo {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, var(--barbie-pink), var(--rose));
-  border-radius: 4px;
+  background: linear-gradient(180deg, var(--hot-pink) 0%, var(--accent) 100%);
+  border-radius: 10px;
+  border: 2px solid var(--secondary);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--hot-pink);
+  background: linear-gradient(180deg, var(--primary) 0%, var(--hot-pink) 100%);
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: var(--primary);
-}
-
-/* Focus styles */
+/* Soft focus styles */
 *:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--hot-pink);
   outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(255, 105, 180, 0.2);
 }

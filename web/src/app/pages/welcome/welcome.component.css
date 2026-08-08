@@ -24,25 +24,31 @@
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.5rem 1rem;
-  background: var(--secondary);
-  border-radius: 100px;
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--text-secondary);
+  padding: 0.6rem 1.2rem;
+  background: linear-gradient(135deg, var(--secondary) 0%, var(--blush) 100%);
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--hot-pink);
   width: fit-content;
+  border: 2px solid var(--border);
+  box-shadow: 0 3px 15px rgba(255, 105, 180, 0.2);
 }
 
 .hero-title {
   font-size: 4rem;
   font-weight: 700;
-  line-height: 1.1;
-  letter-spacing: -0.03em;
-  color: var(--primary);
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  background: linear-gradient(135deg, var(--hot-pink) 0%, var(--accent) 50%, var(--primary) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  filter: drop-shadow(2px 2px 8px rgba(255, 105, 180, 0.2));
 }
 
 .gradient-text {
-  background: linear-gradient(135deg, var(--accent) 0%, #7c3aed 100%);
+  background: linear-gradient(135deg, #ff1493 0%, #ff69b4 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -72,30 +78,32 @@
   align-items: center;
   gap: 0.5rem;
   text-decoration: none;
-  transition: all 0.2s;
+  transition: all 0.25s ease;
 }
 
 .btn-primary {
   background: var(--accent-gradient);
   color: white;
-  box-shadow: 0 4px 12px rgba(233, 30, 140, 0.3);
+  box-shadow: 0 5px 20px rgba(255, 105, 180, 0.35);
+  font-weight: 600;
 }
 
 .btn-primary:hover {
-  background: linear-gradient(135deg, #d91a7a 0%, #ff1493 100%);
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(233, 30, 140, 0.4);
+  transform: translateY(-3px);
+  box-shadow: 0 8px 25px rgba(255, 105, 180, 0.45);
 }
 
 .btn-secondary {
   background: white;
-  color: var(--primary);
-  border: 2px solid var(--border);
+  color: var(--hot-pink);
+  border: 2px solid var(--accent);
+  font-weight: 600;
 }
 
 .btn-secondary:hover {
-  border-color: var(--primary);
+  border-color: var(--hot-pink);
   background: var(--hover);
+  transform: translateY(-3px);
 }
 
 .stats {

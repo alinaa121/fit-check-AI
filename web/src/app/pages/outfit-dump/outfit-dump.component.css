@@ -7,12 +7,16 @@
 
 h1 {
   text-align: center;
-  color: var(--primary);
+  background: linear-gradient(135deg, var(--hot-pink) 0%, var(--accent) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
   margin-bottom: 2rem;
   font-size: 2.5rem;
   font-weight: 700;
-  font-family: 'Playfair Display', serif;
-  letter-spacing: -0.02em;
+  font-family: 'Cormorant Garamond', serif;
+  letter-spacing: 0.01em;
+  filter: drop-shadow(2px 2px 6px rgba(255, 105, 180, 0.2));
 }
 
 .outfit-dump-content {
@@ -29,11 +33,11 @@ h1 {
   min-width: 350px;
   background: white;
   border-radius: 16px;
-  padding: 20px;
-  box-shadow: 0 4px 20px rgba(233, 30, 140, 0.08);
+  padding: 25px;
+  box-shadow: 0 4px 25px rgba(233, 30, 99, 0.12);
   max-height: 90vh;
   overflow-y: auto;
-  border: 1px solid var(--border);
+  border: 2px solid var(--border);
 }
 
 .clothes-section h2 {
@@ -55,30 +59,31 @@ h1 {
 }
 
 .category-btn {
-  padding: 0.625rem 1.25rem;
+  padding: 0.7rem 1.4rem;
   border: 2px solid var(--border);
   background: white;
-  border-radius: 24px;
+  border-radius: 20px;
   cursor: pointer;
   font-size: 0.9rem;
   font-weight: 600;
   color: var(--text-secondary);
-  transition: all 0.3s ease;
-  font-family: 'Playfair Display', serif;
+  transition: all 0.25s ease;
+  font-family: 'Crimson Text', serif;
 }
 
 .category-btn:hover {
-  border-color: var(--accent-light);
-  color: var(--accent);
+  border-color: var(--accent);
+  color: var(--hot-pink);
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(233, 30, 140, 0.15);
+  box-shadow: 0 4px 15px rgba(255, 105, 180, 0.2);
 }
 
 .category-btn.active {
   background: var(--accent-gradient);
   border-color: transparent;
   color: white;
-  box-shadow: 0 4px 12px rgba(233, 30, 140, 0.3);
+  box-shadow: 0 5px 20px rgba(255, 105, 180, 0.35);
+  font-weight: 700;
 }
 
 .loading {

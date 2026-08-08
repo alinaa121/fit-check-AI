@@ -13,5 +13,5 @@ import { NavbarComponent } from './components/navbar/navbar.component';
   styles: []
 })
 export class AppComponent {
-  title = 'Wardrobe AI';
+  title = 'Fit Check AI';
 }

@@ -1,7 +1,7 @@
 <div class="wardrobe-container">
   <div class="header">
     <div>
-      <h1 class="title">My Wardrobe</h1>
+      <h1 class="title">My Closet</h1>
       <p class="subtitle">{{filteredItems.length}} items {{ selectedCategory !== 'All' ? 'in ' + selectedCategory : 'in your collection' }}</p>
     </div>
   </div>
@@ -73,7 +73,7 @@
     <div class="upload-content">
       <div *ngIf="!uploading" class="upload-prompt">
         <div class="upload-icon">📸</div>
-        <h3>Add to Wardrobe</h3>
+        <h3>Add to Closet</h3>
         <p>Drag & drop your image here or click to browse</p>
         <input type="file" 
                #fileInput 
